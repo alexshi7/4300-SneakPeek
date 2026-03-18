@@ -1,63 +1,39 @@
-/* --- Global Styles --- */
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #F5F1E9; /* Your warm beige color stays here */
-  color: #333;
-  /* Notice we removed the background image from here! */
+  font-family: 'Open Sans', sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(235, 110, 52, 0.18), transparent 32%),
+    linear-gradient(180deg, #f5f1e9 0%, #efe6d6 100%);
+  color: #222;
 }
 
-/* This creates a dedicated background layer just for the shoes */
 body::before {
-  content: "";
+  content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   background-image: url('./assets/shoe-pattern.png');
   background-repeat: repeat;
-  background-size: 300px;
-  
-  /* This fades ONLY the pattern, keeping your text solid and crisp */
-  opacity: 0.25; 
-  
-  /* Pushes the pattern completely behind your app */
-  z-index: -1; 
-  
-  /* Prevents the invisible pattern layer from blocking your clicks */
-  pointer-events: none; 
+  background-size: 320px;
+  opacity: 0.08;
+  z-index: -1;
+  pointer-events: none;
 }
 
-/* Make sure your container doesn't have a background color blocking the layer */
 .full-body-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
-  padding: 40px 20px;
+  padding: 40px 20px 60px;
 }
 
-/* (Keep all of your other CSS classes exactly the same below this!) */
-
-/* Ensure the pattern container doesn't block clicks */
-.full-body-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100vh;
-  padding: 40px 20px;
-  z-index: 1; /* Keep it above the background pattern if needed */
-}
-
-/* --- Header & Title --- */
 .top-text {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
   width: 100%;
-  max-width: 800px;
+  max-width: 860px;
 }
 
 .google-colors {
@@ -66,118 +42,197 @@ body::before {
   font-size: 3.5rem;
   font-weight: 800;
   letter-spacing: -2px;
-  margin-bottom: 10px;
 }
 
-/* Custom Colors on the SneakPeek name (Cool Palette) */
-/* We keep using the Google IDs to match your App.tsx */
-.google-colors h1 { margin: 0; }
+.google-colors h1 {
+  margin: 0;
+}
 
-#google-4   { color: #0047AB; } /* S - Deep Blue */
-#google-3   { color: #00FFFF; } /* n - Cyan */
-#google-0-1 { color: #008080; } /* e - Teal */
-#google-0-2 { color: #00FF00; } /* a - Green */
-#google-4   { color: #32CD32; } /* k - Lime Green */
-#google-3   { color: #FF8C00; } /* P - Orange */
-#google-0-1 { color: #FF4500; } /* e - Lighter Red */
-#google-0-2 { color: #FF0000; } /* e - Red */
-#google-4   { color: #8B0000; } /* k - Deep Red */
+#google-4 { color: #2f5233; }
+#google-3 { color: #dc6b2f; }
+#google-0-1 { color: #a83a24; }
+#google-0-2 { color: #d5a021; }
 
-/* --- Search Bar --- */
+.subheading {
+  margin: 12px 0 20px;
+  max-width: 720px;
+  text-align: center;
+  line-height: 1.5;
+  color: #55483b;
+}
+
+.category-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.category-chip {
+  border: 1px solid #1d1d1d;
+  background: rgba(255, 255, 255, 0.78);
+  color: #1d1d1d;
+  border-radius: 999px;
+  padding: 10px 16px;
+  text-transform: capitalize;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.category-chip.active {
+  background: #1d1d1d;
+  color: #fff5e9;
+  transform: translateY(-1px);
+}
+
+.input-box,
+.use-case-box {
+  width: 100%;
+  max-width: 680px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 32px rgba(82, 56, 28, 0.08);
+  border: 1px solid rgba(82, 56, 28, 0.12);
+}
+
 .input-box {
-  background: white;
-  border-radius: 50px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
-  margin-top: 10px;
-  padding: 15px 25px;
-  width: 100%;
-  max-width: 600px;
+  padding: 15px 22px;
   cursor: text;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  transition: box-shadow 0.2s;
-  box-sizing: border-box;
-}
-
-.input-box:hover,
-.input-box:focus-within {
-  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
 }
 
 .input-box img {
   height: 20px;
   width: 20px;
   opacity: 0.5;
-  margin-right: 15px;
+  margin-right: 14px;
 }
 
 .input-box input {
   width: 100%;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   border: none;
   outline: none;
   background: transparent;
 }
 
-/* --- Sneaker Grid Layout --- */
+.use-case-box {
+  min-height: 120px;
+  border-radius: 24px;
+  margin-top: 16px;
+  padding: 18px 20px;
+  font: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.search-button {
+  margin-top: 16px;
+  border: none;
+  background: linear-gradient(135deg, #202020, #5d2f1f);
+  color: white;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.request-summary {
+  margin-top: 12px;
+  color: #6b5845;
+}
+
 #answer-box {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
   width: 100%;
   max-width: 1200px;
-  margin-top: 20px;
 }
 
 .episode-item {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  transition: transform 0.2s, box-shadow 0.2s;
-  border: 1px solid #eee;
+  background: rgba(255, 252, 247, 0.96);
+  border-radius: 20px;
+  padding: 22px;
+  border: 1px solid rgba(72, 52, 30, 0.12);
+  box-shadow: 0 12px 26px rgba(72, 52, 30, 0.08);
 }
 
-.episode-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+.card-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.category-pill,
+.episode-rating {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.category-pill {
+  background: #ece1cf;
+  color: #654527;
+  text-transform: capitalize;
+}
+
+.episode-rating {
+  background: #2e4e3a;
+  color: white;
 }
 
 .episode-title {
-  margin: 0 0 12px 0;
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #111;
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+  line-height: 1.25;
 }
 
 .episode-desc {
   margin: 8px 0;
-  font-size: 1rem;
-  color: #555;
-  line-height: 1.4;
+  line-height: 1.5;
+  color: #4f4338;
 }
 
-.episode-rating {
+.signal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.signal-row span {
+  background: #f1e7d9;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.88rem;
+  color: #694a2c;
+}
+
+.review-snippet {
+  font-style: italic;
+}
+
+.shoe-link {
   display: inline-block;
-  background: #e9ecef;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin-top: 12px;
-  color: #333;
+  margin-top: 10px;
+  color: #7f2f1c;
+  text-decoration: none;
+  font-weight: 700;
 }
 
-/* --- LLM mode: constrain answer-box --- */
 .llm-mode #answer-box {
   max-height: 250px;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
 }
 
-/* --- Chat messages (Unchanged) --- */
 #messages {
   width: 700px;
   max-width: 100%;
@@ -187,7 +242,9 @@ body::before {
   padding: 0 16px 8px;
 }
 
-.message { margin-bottom: 1em; }
+.message {
+  margin-bottom: 1em;
+}
 
 .message p {
   margin: 0;
@@ -198,11 +255,10 @@ body::before {
 }
 
 .message.user p {
-  font-weight: bold;
-  color: #1a73e8;
+  font-weight: 700;
+  color: #7f2f1c;
 }
 
-/* --- Loading dots (Unchanged) --- */
 .loading-indicator {
   display: none;
   align-items: center;
@@ -210,7 +266,9 @@ body::before {
   margin-bottom: 1em;
 }
 
-.loading-indicator.visible { display: flex; }
+.loading-indicator.visible {
+  display: flex;
+}
 
 .loading-dot {
   width: 10px;
@@ -226,27 +284,27 @@ body::before {
 
 @keyframes loading-bounce {
   0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-8px); }
+  50% { transform: translateY(-8px); }
 }
 
-/* --- Chat input bar (Unchanged) --- */
 .chat-bar {
   width: 100%;
   flex-shrink: 0;
   padding: 12px 16px;
-  border-top: 1px solid #ccc;
-  background: #fff;
+  border-top: 1px solid #d6c7b1;
+  background: rgba(255, 252, 247, 0.94);
 }
 
 .chat-bar .input-row {
   display: flex;
   align-items: center;
-  max-width: 600px;
+  max-width: 680px;
   margin: 0 auto;
-  border-radius: 50px;
-  border: 1px solid black;
+  border-radius: 999px;
+  border: 1px solid #7d6a54;
   padding: 10px 10px 10px 16px;
   gap: 8px;
+  background: white;
 }
 
 .chat-bar .input-row img {
@@ -274,18 +332,17 @@ body::before {
   cursor: pointer;
 }
 
-.chat-bar .input-row button:hover:not(:disabled) {
-  background: #333;
-}
-
-.chat-bar .input-row button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 @media (max-width: 768px) {
-  .google-colors { font-size: 2.5rem; }
-  .input-box { width: 90%; }
-  #answer-box { grid-template-columns: 1fr; }
-  #messages { padding: 0 8px 8px; }
+  .google-colors {
+    font-size: 2.5rem;
+  }
+
+  .full-body-container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  #answer-box {
+    grid-template-columns: 1fr;
+  }
 }

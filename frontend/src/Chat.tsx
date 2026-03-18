@@ -2,8 +2,6 @@
  * Chat component — only rendered when USE_LLM = True in routes.py.
  *
  * Shows a message history and a chat input bar at the bottom.
- * When the backend returns a search_term event, it calls onSearchTerm
- * to update the search bar and results above.
  */
 import { useState, useRef, useEffect } from 'react'
 import SearchIcon from './assets/mag.png'
@@ -112,7 +110,7 @@ function Chat({ onSearchTerm }: ChatProps): JSX.Element {
           <img src={SearchIcon} alt="" />
           <input
             type="text"
-            placeholder="Ask the AI about Keeping Up with the Kardashians"
+            placeholder="Ask the AI to explain or refine sneaker matches"
             value={input}
             onChange={e => setInput(e.target.value)}
             disabled={loading}

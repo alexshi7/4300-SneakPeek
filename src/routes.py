@@ -1,55 +1,44 @@
 """
-Routes: React app serving and episode search API.
+Routes for serving the React app and shoe retrieval API.
 
-To enable AI chat, set USE_LLM = True below. See llm_routes.py for AI code.
+The current retrieval layer uses Foot Locker review text and can optionally
+merge physical measurements from src/shoe_specs.csv if you add that file later.
 """
-import json
 import os
-from flask import send_from_directory, request, jsonify
-from models import db, Episode, Review
+from flask import jsonify, request, send_from_directory
 
-# ── AI toggle ────────────────────────────────────────────────────────────────
+from shoe_search import load_catalog, search_shoes
+
 USE_LLM = False
-# USE_LLM = True
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def json_search(query):
-    if not query or not query.strip():
-        query = "Kardashian"
-    results = db.session.query(Episode, Review).join(
-        Review, Episode.id == Review.id
-    ).filter(
-        Episode.title.ilike(f'%{query}%')
-    ).all()
-    matches = []
-    for episode, review in results:
-        matches.append({
-            'title': episode.title,
-            'descr': episode.descr,
-            'imdb_rating': review.imdb_rating
-        })
-    return matches
 
 
 def register_routes(app):
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
     def serve(path):
         if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
             return send_from_directory(app.static_folder, path)
-        else:
-            return send_from_directory(app.static_folder, 'index.html')
+        return send_from_directory(app.static_folder, "index.html")
 
     @app.route("/api/config")
     def config():
-        return jsonify({"use_llm": USE_LLM})
+        return jsonify(
+            {
+                "use_llm": USE_LLM,
+                "catalog_size": len(load_catalog()),
+            }
+        )
 
-    @app.route("/api/episodes")
-    def episodes_search():
-        text = request.args.get("title", "")
-        return jsonify(json_search(text))
+    @app.route("/api/sneakers")
+    def sneakers_search():
+        query = request.args.get("query", "")
+        category = request.args.get("category", "")
+        use_case = request.args.get("use_case", "")
+        limit = min(int(request.args.get("limit", 12)), 24)
+        payload = search_shoes(query=query, category=category, use_case=use_case, limit=limit)
+        return jsonify(payload)
 
     if USE_LLM:
         from llm_routes import register_chat_route
-        register_chat_route(app, json_search)
+
+        register_chat_route(app, search_shoes)

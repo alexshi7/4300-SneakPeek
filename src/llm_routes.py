@@ -1,10 +1,6 @@
 """
-LLM chat route — only loaded when USE_LLM = True in routes.py.
-Adds a POST /api/chat endpoint that performs LLM-driven RAG.
-
-Setup:
-  1. Add API_KEY=your_key to .env
-  2. Set USE_LLM = True in routes.py
+LLM chat route for SneakPeek.
+Only loaded when USE_LLM = True in routes.py.
 """
 import json
 import os
@@ -17,15 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 def llm_search_decision(client, user_message):
-    """Ask the LLM whether to search the DB and which word to use."""
     messages = [
         {
             "role": "system",
             "content": (
-                "You have access to a database of Keeping Up with the Kardashians episode titles, "
-                "descriptions, and IMDB ratings. Search is by a single word in the episode title. "
-                "Reply with exactly: YES followed by one space and ONE word to search (e.g. YES wedding), "
-                "or NO if the question does not need episode data."
+                "You have access to a sneaker retrieval system backed by shoe reviews and optional specs. "
+                "Reply with exactly: YES if the user wants shoe recommendations or shoe matching. "
+                "Reply with exactly: NO for general conversation."
             ),
         },
         {"role": "user", "content": user_message},
@@ -33,17 +27,10 @@ def llm_search_decision(client, user_message):
     response = client.chat(messages)
     content = (response.get("content") or "").strip().upper()
     logger.info(f"LLM search decision: {content}")
-    if re.search(r"\bNO\b", content) and not re.search(r"\bYES\b", content):
-        return False, None
-    yes_match = re.search(r"\bYES\s+(\w+)", content)
-    if yes_match:
-        return True, yes_match.group(1).lower()
-    if re.search(r"\bYES\b", content):
-        return True, "Kardashian"
-    return False, None
+    return bool(re.search(r"\bYES\b", content)) and not bool(re.search(r"\bNO\b", content)), None
 
 
-def register_chat_route(app, json_search):
+def register_chat_route(app, shoe_search):
     """Register the /api/chat SSE endpoint. Called from routes.py."""
 
     @app.route("/api/chat", methods=["POST"])
@@ -58,27 +45,39 @@ def register_chat_route(app, json_search):
             return jsonify({"error": "API_KEY not set — add it to your .env file"}), 500
 
         client = LLMClient(api_key=api_key)
-        use_search, search_term = llm_search_decision(client, user_message)
+        use_search, _ = llm_search_decision(client, user_message)
 
         if use_search:
-            episodes = json_search(search_term or "Kardashian")
+            search_payload = shoe_search(query=user_message, use_case=user_message, limit=6)
+            sneakers = search_payload["results"]
             context_text = "\n\n---\n\n".join(
-                f"Title: {ep['title']}\nDescription: {ep['descr']}\nIMDB Rating: {ep['imdb_rating']}"
-                for ep in episodes
-            ) or "No matching episodes found."
+                (
+                    f"Shoe: {shoe['shoe_name']}\n"
+                    f"Category: {shoe['category']}\n"
+                    f"Match score: {shoe['match_score']}\n"
+                    f"Reasons: {', '.join(shoe['match_reasons'])}\n"
+                    f"Top terms: {', '.join(shoe['top_terms'])}\n"
+                    f"Sample reviews: {' | '.join(shoe['sample_reviews'])}"
+                )
+                for shoe in sneakers
+            ) or "No matching sneakers found."
             messages = [
-                {"role": "system", "content": "Answer questions about Keeping Up with the Kardashians using only the episode information provided."},
-                {"role": "user", "content": f"Episode information:\n\n{context_text}\n\nUser question: {user_message}"},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a sneaker recommendation assistant. Use only the provided sneaker results. "
+                        "Explain matches in terms of review evidence and explicitly say when physical measurements are unavailable."
+                    ),
+                },
+                {"role": "user", "content": f"Sneaker information:\n\n{context_text}\n\nUser question: {user_message}"},
             ]
         else:
             messages = [
-                {"role": "system", "content": "You are a helpful assistant for Keeping Up with the Kardashians questions."},
+                {"role": "system", "content": "You are a helpful assistant for SneakPeek, a sneaker search app."},
                 {"role": "user", "content": user_message},
             ]
 
         def generate():
-            if use_search and search_term:
-                yield f"data: {json.dumps({'search_term': search_term})}\n\n"
             try:
                 for chunk in client.chat(messages, stream=True):
                     if chunk.get("content"):
