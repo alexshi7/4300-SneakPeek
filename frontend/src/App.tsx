@@ -134,10 +134,10 @@ function App(): JSX.Element {
               Top review evidence: {sneaker.match_reasons.join(' • ') || 'General text overlap'}
             </p>
             <div className="signal-row">
-              <span>Lightweight {sneaker.review_signals.lightweight || 0}</span>
-              <span>Traction {sneaker.review_signals.traction || 0}</span>
-              <span>Style {sneaker.review_signals.stylish || 0}</span>
-              <span>Support {sneaker.review_signals.support || 0}</span>
+              <span>Lightweight</span>
+              <span>Traction</span>
+              <span>Style</span>
+              <span>Support</span>
             </div>
             <p className="episode-desc review-snippet">
               "{sneaker.sample_reviews[0] || 'No sample review available.'}"
