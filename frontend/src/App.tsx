@@ -122,10 +122,13 @@ function App(): JSX.Element {
               {sneaker.signature_player ? ` • Signature: ${sneaker.signature_player}` : ''}
             </p>
             <p className="episode-desc">
-              {sneaker.specs.weight_oz ? `Weight: ${sneaker.specs.weight_oz} oz` : 'Weight: n/a'}
-              {sneaker.specs.price_usd ? ` • Price: $${sneaker.specs.price_usd}` : ''}
-              {sneaker.specs.traction_score ? ` • Traction: ${sneaker.specs.traction_score}` : ''}
-              {sneaker.specs.top_style ? ` • Top: ${sneaker.specs.top_style}` : ''}
+              {[
+                sneaker.specs.price_usd ? `Price: $${sneaker.specs.price_usd}` : '',
+                sneaker.specs.traction_score ? `Traction: ${sneaker.specs.traction_score}` : '',
+                sneaker.specs.top_style ? `Top: ${sneaker.specs.top_style}` : '',
+              ]
+                .filter(Boolean)
+                .join(' • ')}
             </p>
             <p className="episode-desc">
               Top review evidence: {sneaker.match_reasons.join(' • ') || 'General text overlap'}
