@@ -10,7 +10,6 @@ function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
   const [catalogSize, setCatalogSize] = useState<number>(0)
   const [category, setCategory] = useState<string>('basketball')
-  const [query, setQuery] = useState<string>('basketball shoe')
   const [useCase, setUseCase] = useState<string>(
     "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style."
   )
@@ -27,7 +26,7 @@ function App(): JSX.Element {
   }, [])
 
   const runSearch = async (
-    nextQuery: string = query,
+    nextQuery: string = category,
     nextCategory: string = category,
     nextUseCase: string = useCase
   ): Promise<void> => {
@@ -81,22 +80,25 @@ function App(): JSX.Element {
           ))}
         </div>
 
-        <div className="input-box" onClick={() => document.getElementById('search-input')?.focus()}>
+        <div className="use-case-shell" onClick={() => document.getElementById('use-case-input')?.focus()}>
           <img src={SearchIcon} alt="search" />
-          <input
-            id="search-input"
-            placeholder="Enter the broad shoe search, like basketball shoe or retro runner"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
+          <div className="use-case-content">
+            {!useCase && (
+              <span className="use-case-placeholder">
+                Describe the kind of shoe you want, how you play or run, and what matters most.
+              </span>
+            )}
+            <textarea
+              id="use-case-input"
+              className="use-case-box"
+              placeholder=""
+              value={useCase}
+              onChange={e => setUseCase(e.target.value)}
+              rows={4}
+              spellCheck={false}
+            />
+          </div>
         </div>
-
-        <textarea
-          className="use-case-box"
-          placeholder="Describe your use case and priorities."
-          value={useCase}
-          onChange={e => setUseCase(e.target.value)}
-        />
 
         <button className="search-button" type="button" onClick={() => void runSearch()}>
           Find Matches
