@@ -3,7 +3,6 @@ import math
 import os
 import re
 from collections import Counter
-from functools import lru_cache
 
 
 DATASETS = {
@@ -93,6 +92,10 @@ CATEGORY_HINTS = {
     },
 }
 
+catalog_cache = None
+idf_cache = None
+indexed_catalog_cache = None
+
 
 def _data_dir():
     return os.path.dirname(os.path.abspath(__file__))
@@ -170,8 +173,11 @@ def _build_document(row, category):
     }
 
 
-@lru_cache(maxsize=1)
 def load_catalog():
+    global catalog_cache
+    if catalog_cache is not None:
+        return catalog_cache
+
     grouped = {}
     for category, filename in DATASETS.items():
         path = os.path.join(_data_dir(), filename)
@@ -214,11 +220,15 @@ def load_catalog():
                 category,
             )
         )
-    return catalog
+    catalog_cache = catalog
+    return catalog_cache
 
 
-@lru_cache(maxsize=1)
 def _idf_values():
+    global idf_cache
+    if idf_cache is not None:
+        return idf_cache
+
     catalog = load_catalog()
     doc_count = len(catalog)
     document_frequency = Counter()
@@ -228,11 +238,15 @@ def _idf_values():
     idf = {}
     for token, frequency in document_frequency.items():
         idf[token] = math.log((1 + doc_count) / (1 + frequency)) + 1.0
-    return idf
+    idf_cache = idf
+    return idf_cache
 
 
-@lru_cache(maxsize=1)
 def _indexed_catalog():
+    global indexed_catalog_cache
+    if indexed_catalog_cache is not None:
+        return indexed_catalog_cache
+
     idf = _idf_values()
     indexed = []
     for shoe in load_catalog():
@@ -240,14 +254,9 @@ def _indexed_catalog():
         for token, count in shoe["token_counts"].items():
             vector[token] = count * idf[token]
 
-        indexed.append(
-            {
-                **shoe,
-                "tfidf_vector": vector,
-                "vector_norm": math.sqrt(sum(weight * weight for weight in vector.values())),
-            }
-        )
-    return indexed
+        indexed.append({**shoe, "tfidf_vector": vector, "vector_norm": math.sqrt(sum(weight * weight for weight in vector.values()))})
+    indexed_catalog_cache = indexed
+    return indexed_catalog_cache
 
 
 def _make_query_vector(query_text):
