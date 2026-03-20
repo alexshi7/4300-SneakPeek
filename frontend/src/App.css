@@ -1,9 +1,7 @@
 body {
   margin: 0;
   font-family: 'Open Sans', sans-serif;
-  background:
-    radial-gradient(circle at top, rgba(235, 110, 52, 0.24), transparent 36%),
-    linear-gradient(180deg, #f1eadf 0%, #e6d7c2 100%);
+  background: #f7f5f1;
   color: #222;
 }
 
@@ -51,7 +49,7 @@ body::before {
 #google-4 { color: #2f5233; }
 #google-3 { color: #dc6b2f; }
 #google-0-1 { color: #a83a24; }
-#google-0-2 { color: #d5a021; }
+/* #google-0-2 { color: #d5a021; } */
 
 .subheading {
   margin: 12px 0 20px;
