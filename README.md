@@ -215,3 +215,7 @@ Keep your virtual environment out of git — it inflates repository size and wil
 
 - **Problems with deployment?** Post on Ed Discussion or email course staff
 - **Questions about the deployment system?** Course staff are happy to help!
+
+## AI Disclaimer
+
+- we used genAI to assist us with SVD implementations, TFIDF , and formula design.
