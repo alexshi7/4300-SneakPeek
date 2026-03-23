@@ -10,7 +10,7 @@ import numpy as np
 DATASETS = {
     "basketball": "data/basketball_data.csv",
     "running": "data/running_data.csv",
-    "sneakers": "data/sneakers_data2.csv",
+    "sneakers": "data/sneakers_data.csv",
 }
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
