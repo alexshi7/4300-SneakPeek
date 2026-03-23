@@ -12,7 +12,7 @@ body::before {
   background-image: url('./assets/shoe-pattern.png');
   background-repeat: repeat;
   background-size: 320px;
-  opacity: 0.16;
+  opacity: 0.29;
   z-index: -1;
   pointer-events: none;
 }
@@ -37,9 +37,13 @@ body::before {
 .google-colors {
   display: flex;
   justify-content: center;
-  font-size: 3.5rem;
+  font-family: 'Kanit', sans-serif;
+  font-size: 4rem;
   font-weight: 800;
-  letter-spacing: -2px;
+  font-style: italic;
+  letter-spacing: -1px;
+  text-transform: uppercase;
+  filter: drop-shadow(0 2px 6px rgba(47, 38, 28, 0.18));
 }
 
 .google-colors h1 {
@@ -55,8 +59,9 @@ body::before {
   margin: 12px 0 20px;
   max-width: 720px;
   text-align: center;
+  font-weight: bold;
   line-height: 1.5;
-  color: #55483b;
+  color: black;
 }
 
 .category-row {
@@ -381,7 +386,7 @@ body::before {
 
 @media (max-width: 768px) {
   .google-colors {
-    font-size: 2.5rem;
+    font-size: 3rem;
   }
 
   .full-body-container {
