@@ -32,6 +32,23 @@ body::before {
   margin-bottom: 32px;
   width: 100%;
   max-width: 860px;
+  position: relative;
+}
+
+.version-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(72, 52, 30, 0.18);
+  background: rgba(255, 252, 247, 0.92);
+  color: #6b5845;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 20px rgba(72, 52, 30, 0.08);
 }
 
 .google-colors {
@@ -392,6 +409,12 @@ body::before {
   .full-body-container {
     padding-left: 14px;
     padding-right: 14px;
+  }
+
+  .version-badge {
+    position: static;
+    align-self: flex-end;
+    margin-bottom: 12px;
   }
 
   #answer-box {

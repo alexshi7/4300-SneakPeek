@@ -10,6 +10,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+::selection {
+  background: #dc6b2f;
+  color: #fff7ef;
+}
+
+::-moz-selection {
+  background: #dc6b2f;
+  color: #fff7ef;
+}
+
 #root {
   width: 100%;
   min-height: 100vh;

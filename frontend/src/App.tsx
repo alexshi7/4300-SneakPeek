@@ -5,6 +5,7 @@ import Chat from './Chat'
 import { SearchResponse, Sneaker } from './types'
 
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
+const VERSION_LABEL = 'Version 3.3'
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
@@ -52,6 +53,7 @@ function App(): JSX.Element {
   return (
     <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
       <div className="top-text">
+        <span className="version-badge">{VERSION_LABEL}</span>
         <div className="google-colors">
           <h1 id="google-4">S</h1>
           <h1 id="google-3">n</h1>
