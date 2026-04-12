@@ -298,6 +298,12 @@ body::before {
   border: 1px solid #bae6fd;
   font-weight: 600;
 }
+.signal-row span.name-match {
+  background-color: #dcfce7; /* Light green */
+  color: #166534;            /* Dark green text */
+  border: 1px solid #bbf7d0;
+  font-weight: 700;
+}
 
 .review-snippet {
   font-style: italic;

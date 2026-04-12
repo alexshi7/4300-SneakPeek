@@ -530,9 +530,28 @@ def search_shoes(query="", category="", use_case="", limit=12):
             svd_reason = fl_data["reason"]
         else:
             final_sim = tfidf_sim
+        
+        # --- NEW TITLE BOOST LOGIC ---
+        # Extract words from the user's search and the shoe's name
+        user_words = set(_tokenize(f"{query} {use_case}"))
+        name_words = set(_tokenize(shoe["shoe_name"]))
+        
+        # Find how many words overlap (e.g., "nike dunk" -> 2 overlapping words)
+        name_overlap = user_words.intersection(name_words)
+        title_boosted = False
+        
+        # If they matched at least 2 words from the title (or 1 if it's a 1-word shoe brand)
+        if len(name_overlap) >= 2 or (len(name_words) == 1 and len(name_overlap) == 1):
+            final_sim *= 3.0  # 300% score boost to guarantee top spots!
+            title_boosted = True
+        # -----------------------------
 
         # Calculate base reasons
         reasons = _match_reasons(query_vector, shoe, category_filter)
+
+        # Add the Name Match badge first so it shows up at the front
+        if title_boosted:
+            reasons.insert(0, "🎯 Direct Name Match")
         
         # Append SVD Explainability
         if svd_reason:

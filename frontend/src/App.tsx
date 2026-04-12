@@ -152,6 +152,7 @@ function App(): JSX.Element {
                   let badgeClass = '';
                   if (reason.includes('Penalty')) badgeClass = 'penalty-warning';
                   if (reason.includes('SVD')) badgeClass = 'svd-match';
+                  if (reason.includes('Name')) badgeClass = 'name-match'; // <-- NEW LINE
 
                   return (
                     <span key={index} className={badgeClass}>
