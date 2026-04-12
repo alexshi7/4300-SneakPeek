@@ -298,8 +298,9 @@ def _cosine_similarity(query_vector, query_norm, document_vector, document_norm)
 def _match_reasons(query_vector, shoe, category_filter):
     reasons = []
 
-    if category_filter and shoe["category"] == category_filter:
-        reasons.append(f"matches {category_filter} category")
+    # if category_filter and shoe["category"] == category_filter:
+    #     reasons.append(f"matches {category_filter} category")
+    # Removed the category matching string to clean up the UI and because the category filter is already displayed prominently in the UI design.
 
     shared_terms = [
         token for token in query_vector if token in shoe["tfidf_vector"]
