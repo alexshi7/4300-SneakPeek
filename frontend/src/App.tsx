@@ -5,7 +5,7 @@ import Chat from './Chat'
 import { SearchResponse, Sneaker } from './types'
 
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
-const VERSION_LABEL = 'Version 3.3'
+const VERSION_LABEL = 'Version 4.0' //changed by Aaron ("4.0" cause it's for po4) to reflect new SVD match reason and penalty warning badge in the UI
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
