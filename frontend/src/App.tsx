@@ -134,7 +134,9 @@ function App(): JSX.Element {
                 .filter(Boolean)
                 .join(' • ')}
             </p>
-            <p className="episode-desc">
+
+            {/* Aaron changed this part to add penalty warning style */}
+            {/* <p className="episode-desc">
               Top review evidence: {sneaker.match_reasons.join(' • ') || 'General text overlap'}
             </p>
             <div className="signal-row">
@@ -142,7 +144,26 @@ function App(): JSX.Element {
               <span>Traction</span>
               <span>Style</span>
               <span>Support</span>
+            </div> */}
+            <p className="episode-desc">Top review evidence:</p>
+            <div className="signal-row">
+              {sneaker.match_reasons.length > 0 ? (
+                sneaker.match_reasons.map((reason, index) => {
+                  let badgeClass = '';
+                  if (reason.includes('Penalty')) badgeClass = 'penalty-warning';
+                  if (reason.includes('SVD')) badgeClass = 'svd-match';
+
+                  return (
+                    <span key={index} className={badgeClass}>
+                      {reason}
+                    </span>
+                  );
+                })
+              ) : (
+                <span>General text overlap</span>
+              )}
             </div>
+
             <p className="episode-desc review-snippet">
               "{sneaker.sample_reviews[0] || 'No sample review available.'}"
             </p>

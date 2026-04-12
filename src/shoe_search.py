@@ -437,9 +437,37 @@ def _fl_svd_similarities(query_text):
         return {}
     q_svd = q_svd / q_svd_norm
 
-    # shoe_vecs are already unit-normalized → dot product = cosine similarity
-    sims = np.clip(model["shoe_vecs"] @ q_svd, 0.0, 1.0)
-    return {name: float(sims[i]) for i, name in enumerate(model["shoes"])}
+    #Aaron did the rest of the method here to get the top contributing dimension and its concept words for each shoe, and format the reason string accordingly.
+    # Calculate similarities and dimension contributions
+    shoe_vecs = model["shoe_vecs"]
+    sims = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
+    
+    # NEW: Determine WHICH dimension contributed the most to the match
+    contributions = shoe_vecs * q_svd
+    top_dims = np.argmax(contributions, axis=1)
+    
+    # Reverse the vocabulary dictionary to look up words
+    idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
+
+    fl_results = {}
+    for i, name in enumerate(model["shoes"]):
+        best_k = top_dims[i]
+        row_k = model["Vt_k"][best_k, :]
+        
+        # If the activation is positive, get the top positive words. If negative, get the most negative.
+        if q_svd[best_k] > 0:
+            top_indices = np.argsort(row_k)[::-1][:3]
+        else:
+            top_indices = np.argsort(row_k)[:3]
+            
+        concept_words = [idx_to_vocab.get(idx, "") for idx in top_indices]
+        
+        fl_results[name] = {
+            "score": float(sims[i]),
+            "reason": f"SVD Dim {best_k+1} ({', '.join(concept_words)})"
+        }
+
+    return fl_results
 
 
 def search_shoes(query="", category="", use_case="", limit=12):
@@ -481,11 +509,37 @@ def search_shoes(query="", category="", use_case="", limit=12):
             continue
 
         # Blend in Foot Locker SVD signal when available for this shoe
-        fl_sim = fl_sims.get(shoe["shoe_name"].lower())
-        if fl_sim is not None:
+
+        # fl_sim = fl_sims.get(shoe["shoe_name"].lower())
+
+        # if fl_sim is not None:
+        #     final_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_sim
+        # else:
+        #     final_sim = tfidf_sim
+
+        #AARON CHANGED REST OF LOOP
+        # Blend in Foot Locker SVD signal ONLY if the shoe has sufficient user reviews
+        fl_data = fl_sims.get(shoe["shoe_name"].lower())
+        svd_reason = None
+        
+        # If the shoe is niche (< 15 reviews), rely completely on the TF-IDF (expert) score
+        if fl_data is not None and shoe["review_count"] >= 15:
+            fl_sim = fl_data["score"]
             final_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_sim
+            svd_reason = fl_data["reason"]
         else:
             final_sim = tfidf_sim
+
+        # Calculate base reasons
+        reasons = _match_reasons(query_vector, shoe, category_filter)
+        
+        # Append SVD Explainability
+        if svd_reason:
+            reasons.append(f"✨ Matches {svd_reason}")
+        
+        # If the negative similarity is significant, flag it for the UI
+        if neg_sim > 0.05: 
+            reasons.append("⚠️ Expert Penalty Applied")
 
         results.append(
             {
@@ -497,7 +551,7 @@ def search_shoes(query="", category="", use_case="", limit=12):
                 "signature_player": None,
                 "review_signals": {},
                 "top_terms": shoe["top_terms"],
-                "match_reasons": _match_reasons(query_vector, shoe, category_filter),
+                "match_reasons": reasons,
                 "sample_reviews": shoe["sample_reviews"],
                 "footlocker_url": shoe["footlocker_url"],
                 "specs": {},

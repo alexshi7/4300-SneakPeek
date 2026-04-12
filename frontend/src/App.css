@@ -285,6 +285,20 @@ body::before {
   color: #694a2c;
 }
 
+/* Aaron did these */
+.signal-row span.penalty-warning {
+  background-color: #fbd5ce;  /* Soft red/orange background */
+  color: #a83a24;             /* Dark red text matching your #google-0-1 color */
+  border: 1px solid #e5a396;
+  font-weight: 700;
+}
+.signal-row span.svd-match {
+  background-color: #e0f2fe; /* Light blue */
+  color: #0369a1;            /* Dark blue text */
+  border: 1px solid #bae6fd;
+  font-weight: 600;
+}
+
 .review-snippet {
   font-style: italic;
 }
