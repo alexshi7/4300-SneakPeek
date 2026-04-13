@@ -99,6 +99,7 @@ CATEGORY_HINTS = {
 FL_REVIEWS_PATH = "data/footlocker_reviews_cleaned.csv"
 FL_SVD_K = 20        # latent dimensions
 FL_SVD_WEIGHT = 0.25  # blend weight: final = (1-w)*tfidf + w*svd
+FL_SVD_MIN_REVIEWS = 15
 NEG_PENALTY = 0.5    # β: sim_expert = sim_pos - β * sim_neg, clamped ≥ 0
 NEGATIVE_SECTION_WEIGHTS = {
     "who_should_not_buy": 0.7,
@@ -840,11 +841,13 @@ def _load_fl_svd():
     # Aggregate review tokens per shoe (normalize by total tokens to handle
     # unequal review counts — shoes with more reviews won't dominate)
     shoe_tokens = {}
+    fl_review_counts = Counter()
     with open(path, newline="", encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
             name = _normalize_text(row.get("shoe_name", "")).lower()
             if name not in sneakers_shoes:
                 continue
+            fl_review_counts[name] += 1
             tokens = _tokenize(row.get("clean_review_text", ""))
             if name not in shoe_tokens:
                 shoe_tokens[name] = Counter()
@@ -898,6 +901,7 @@ def _load_fl_svd():
         "s_k": s_k,
         "vocab_idx": vocab_idx,
         "idf": idf,
+        "fl_review_counts": dict(fl_review_counts),
     }
     return fl_svd_cache
 
@@ -970,6 +974,7 @@ def _fl_svd_similarities(query_text):
         fl_results[name] = {
             "score": float(sims[i]),
             "reason": reason,
+            "fl_review_count": int(model["fl_review_counts"].get(name, 0)),
         }
 
     return fl_results
@@ -1113,12 +1118,12 @@ def search_shoes(query="", category="", use_case="", limit=12):
         neg_sim, penalty_attributes = _expert_penalty(full_query_text, category_filter, shoe)
         tfidf_sim = max(0.0, pos_sim - NEG_PENALTY * neg_sim)
 
-        # Blend in Foot Locker SVD signal ONLY if the shoe has sufficient user reviews
+        # Blend in Foot Locker SVD signal only when the Foot Locker review corpus
+        # has enough reviews for this shoe to produce a stable latent embedding.
         fl_data = fl_sims.get(shoe["shoe_name"].lower())
         svd_reason = None
 
-        # If the shoe is niche (< 15 reviews), rely completely on the TF-IDF (expert) score
-        if fl_data is not None and shoe["review_count"] >= 15:
+        if fl_data is not None and fl_data["fl_review_count"] >= FL_SVD_MIN_REVIEWS:
             fl_sim = fl_data["score"]
             expert_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_sim
             svd_reason = fl_data["reason"]
