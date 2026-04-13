@@ -305,6 +305,44 @@ body::before {
   font-weight: 700;
 }
 
+.penalty-detail {
+  margin: -2px 0 12px;
+}
+
+.penalty-detail summary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: #a83a24;
+  font-size: 0.88rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.penalty-detail summary::-webkit-details-marker {
+  display: none;
+}
+
+.penalty-detail summary::after {
+  content: ' +';
+  margin-left: 6px;
+}
+
+.penalty-detail[open] summary::after {
+  content: ' -';
+}
+
+.penalty-detail-text {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff1ed;
+  border: 1px solid #f2c6bc;
+  color: #7f2f1c;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .review-snippet {
   font-style: italic;
 }

@@ -737,6 +737,20 @@ def _expert_penalty(query_text, category, shoe):
     return penalty, sorted(attribute_weights)
 
 
+def _expert_penalty_detail(shoe):
+    sections = shoe.get("negative_sections") or _extract_negative_sections(shoe.get("negative_text", ""))
+    details = []
+    who_should_not_buy = sections.get("who_should_not_buy", "")
+    cons = sections.get("cons", "")
+
+    if who_should_not_buy:
+        details.append(f"Who should not buy: {who_should_not_buy}")
+    if cons:
+        details.append(f"Cons: {cons}")
+
+    return "\n\n".join(details)
+
+
 def _query_tags(query_vector, shoe, limit=5):
     """Return the top matched terms between query and this specific shoe, ranked
     by their contribution to the cosine similarity score."""
@@ -1137,17 +1151,14 @@ def search_shoes(query="", category="", use_case="", limit=12):
 
         # Build special-badge reasons only (no "matched 'X'" keyword clutter)
         special_badges = []
+        expert_penalty_detail = ""
         if title_boosted:
             special_badges.append("🎯 Direct Name Match")
         if svd_reason:
             special_badges.append(f"✨ Matches {svd_reason}")
         if neg_sim > NEGATIVE_BADGE_THRESHOLD:
-            if penalty_attributes:
-                special_badges.append(
-                    f"⚠️ Expert Penalty Applied ({', '.join(penalty_attributes)})"
-                )
-            else:
-                special_badges.append("⚠️ Expert Penalty Applied")
+            special_badges.append("⚠️ Expert Penalty Applied")
+            expert_penalty_detail = _expert_penalty_detail(shoe)
 
         results.append(
             {
@@ -1160,6 +1171,7 @@ def search_shoes(query="", category="", use_case="", limit=12):
                 "review_signals": {},
                 "top_terms": _query_tags(query_vector, shoe),
                 "match_reasons": special_badges,
+                "expert_penalty_detail": expert_penalty_detail,
                 "review_evidence": _review_evidence(query_vector, shoe),
                 "sample_reviews": shoe["sample_reviews"],
                 "footlocker_url": shoe["footlocker_url"],

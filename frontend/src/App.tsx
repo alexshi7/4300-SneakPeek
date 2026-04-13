@@ -114,54 +114,62 @@ function App(): JSX.Element {
       </div>
 
       <div id="answer-box">
-        {sneakers.map(sneaker => (
-          <article key={sneaker.id} className="episode-item">
-            <div className="card-topline">
-              <span className="category-pill">{sneaker.category}</span>
-              <span className="episode-rating">Match {sneaker.match_score}%</span>
-            </div>
-            <h3 className="episode-title">{sneaker.shoe_name}</h3>
-            {sneaker.signature_player && (
-              <p className="episode-desc">Signature: {sneaker.signature_player}</p>
-            )}
+        {sneakers.map(sneaker => {
+          const hasPenalty = sneaker.match_reasons.some(reason => reason.includes('Penalty'))
 
-            {/* Per-query feature tags — unique to this shoe for this search */}
-            <div className="signal-row">
-              {sneaker.top_terms.map((term, index) => (
-                <span key={index}>{term}</span>
-              ))}
-            </div>
-
-            {/* Special system badges (name match, SVD, penalty) — only shown when present */}
-            {sneaker.match_reasons.length > 0 && (
-              <div className="signal-row">
-                {sneaker.match_reasons.map((reason, index) => {
-                  let badgeClass = '';
-                  if (reason.includes('Penalty')) badgeClass = 'penalty-warning';
-                  if (reason.includes('SVD')) badgeClass = 'svd-match';
-                  if (reason.includes('Name')) badgeClass = 'name-match';
-                  return (
-                    <span key={index} className={badgeClass}>
-                      {reason}
-                    </span>
-                  );
-                })}
+          return (
+            <article key={sneaker.id} className="episode-item">
+              <div className="card-topline">
+                <span className="category-pill">{sneaker.category}</span>
+                <span className="episode-rating">Match {sneaker.match_score}%</span>
               </div>
-            )}
+              <h3 className="episode-title">{sneaker.shoe_name}</h3>
+              {sneaker.signature_player && (
+                <p className="episode-desc">Signature: {sneaker.signature_player}</p>
+              )}
 
-            {/* Review-based evidence sentence derived from actual review text */}
-            <p className="episode-desc">{sneaker.review_evidence}</p>
+              <div className="signal-row">
+                {sneaker.top_terms.map((term, index) => (
+                  <span key={index}>{term}</span>
+                ))}
+              </div>
 
-            <p className="episode-desc review-snippet">
-              "{sneaker.sample_reviews[0] || 'No sample review available.'}"
-            </p>
-            {sneaker.footlocker_url && (
-              <a className="shoe-link" href={sneaker.footlocker_url} target="_blank" rel="noreferrer">
-                View source reviews
-              </a>
-            )}
-          </article>
-        ))}
+              {sneaker.match_reasons.length > 0 && (
+                <div className="signal-row">
+                  {sneaker.match_reasons.map((reason, index) => {
+                    let badgeClass = ''
+                    if (reason.includes('Penalty')) badgeClass = 'penalty-warning'
+                    if (reason.includes('SVD')) badgeClass = 'svd-match'
+                    if (reason.includes('Name')) badgeClass = 'name-match'
+                    return (
+                      <span key={index} className={badgeClass}>
+                        {reason}
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+
+              {hasPenalty && sneaker.expert_penalty_detail && (
+                <details className="penalty-detail">
+                  <summary>See more</summary>
+                  <p className="penalty-detail-text">{sneaker.expert_penalty_detail}</p>
+                </details>
+              )}
+
+              <p className="episode-desc">{sneaker.review_evidence}</p>
+
+              <p className="episode-desc review-snippet">
+                "{sneaker.sample_reviews[0] || 'No sample review available.'}"
+              </p>
+              {sneaker.footlocker_url && (
+                <a className="shoe-link" href={sneaker.footlocker_url} target="_blank" rel="noreferrer">
+                  View source reviews
+                </a>
+              )}
+            </article>
+          )
+        })}
       </div>
 
       {useLlm && <Chat onSearchTerm={(term: string) => setUseCase(term)} />}
