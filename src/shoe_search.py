@@ -935,34 +935,41 @@ def _fl_svd_similarities(query_text):
         return {}
     q_svd = q_svd / q_svd_norm
 
-    #Aaron did the rest of the method here to get the top contributing dimension and its concept words for each shoe, and format the reason string accordingly.
-    # Calculate similarities and dimension contributions
-    shoe_vecs = model["shoe_vecs"]
-    sims = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
-    
-    # NEW: Determine WHICH dimension contributed the most to the match
-    contributions = shoe_vecs * q_svd
-    top_dims = np.argmax(contributions, axis=1)
-    
-    # Reverse the vocabulary dictionary to look up words
+    # Calculate similarities and per-dimension contributions for every shoe
+    shoe_vecs     = model["shoe_vecs"]
+    sims          = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
+    contributions = shoe_vecs * q_svd   # (n_shoes, k) — signed contribution per dim
+
     idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
+
+    def _dim_label(dim, sign_positive):
+        """Return top concept words for a dimension in the direction of activation."""
+        row = model["Vt_k"][dim]
+        top_idx = np.argsort(row)[::-1][:3] if sign_positive else np.argsort(row)[:3]
+        words = ", ".join(idx_to_vocab.get(j, "") for j in top_idx)
+        sign_str = "+" if sign_positive else "−"
+        return f"Dim {dim+1} [{sign_str}] ({words})"
 
     fl_results = {}
     for i, name in enumerate(model["shoes"]):
-        best_k = top_dims[i]
-        row_k = model["Vt_k"][best_k, :]
-        
-        # If the activation is positive, get the top positive words. If negative, get the most negative.
-        if q_svd[best_k] > 0:
-            top_indices = np.argsort(row_k)[::-1][:3]
-        else:
-            top_indices = np.argsort(row_k)[:3]
-            
-        concept_words = [idx_to_vocab.get(idx, "") for idx in top_indices]
-        
+        c_row = contributions[i]
+
+        # Top positively contributing dimension (query and shoe agree)
+        pos_dim = int(np.argmax(c_row))
+        pos_label = _dim_label(pos_dim, q_svd[pos_dim] >= 0)
+
+        # Top counter-dimension: where shoe and query most disagree
+        neg_dim  = int(np.argmin(c_row))
+        neg_contrib = float(c_row[neg_dim])
+
+        reason = f"SVD {pos_label}"
+        if neg_contrib < -0.01:
+            neg_label = _dim_label(neg_dim, q_svd[neg_dim] >= 0)
+            reason += f" / counter: {neg_label}"
+
         fl_results[name] = {
             "score": float(sims[i]),
-            "reason": f"SVD Dim {best_k+1} ({', '.join(concept_words)})"
+            "reason": reason,
         }
 
     return fl_results
