@@ -100,6 +100,285 @@ FL_REVIEWS_PATH = "data/footlocker_reviews_cleaned.csv"
 FL_SVD_K = 20        # latent dimensions
 FL_SVD_WEIGHT = 0.25  # blend weight: final = (1-w)*tfidf + w*svd
 NEG_PENALTY = 0.5    # β: sim_expert = sim_pos - β * sim_neg, clamped ≥ 0
+NEGATIVE_SECTION_WEIGHTS = {
+    "who_should_not_buy": 0.7,
+    "cons": 0.45,
+}
+NEGATIVE_BADGE_THRESHOLD = 0.12
+
+QUERY_ATTRIBUTE_PATTERNS = {
+    "lightweight": [
+        r"\blightweight\b",
+        r"\blighter\b",
+        r"\blight\b",
+        r"\bquick\b",
+        r"\bfast\b",
+        r"\bspeed\b",
+        r"\bnimble\b",
+    ],
+    "breathability": [
+        r"\bbreathab",
+        r"\bairy\b",
+        r"\bventilat",
+        r"\bcool(?:er)?\b",
+        r"\bsummer\b",
+    ],
+    "support": [
+        r"\bsupport",
+        r"\bsupportive\b",
+        r"\bankle\b",
+        r"\bstability\b",
+        r"\bstable\b",
+        r"\bcontainment\b",
+        r"\blockdown\b",
+        r"\bsecure\b",
+        r"\bhigh[ -]?top\b",
+    ],
+    "comfort": [
+        r"\bcomfort",
+        r"\bcomfortable\b",
+        r"\bcushion",
+        r"\bcushioned\b",
+        r"\bsoft\b",
+        r"\bplush\b",
+        r"\bwalking\b",
+        r"\btravel\b",
+        r"\ball[ -]?day\b",
+        r"\blong runs?\b",
+        r"\bdaily miles?\b",
+        r"\brecovery\b",
+    ],
+    "distance": [
+        r"\bmarathon\b",
+        r"\blong runs?\b",
+        r"\blong[- ]distance\b",
+        r"\bdistance\b",
+        r"\bdaily miles?\b",
+        r"\bmileage\b",
+    ],
+    "traction": [
+        r"\btraction\b",
+        r"\bgrip\b",
+        r"\bgrippy\b",
+        r"\bslip resistant\b",
+        r"\bdust\b",
+    ],
+    "durability": [
+        r"\bdurable\b",
+        r"\bdurability\b",
+        r"\btough\b",
+        r"\boutsole\b",
+        r"\bhard[- ]wearing\b",
+        r"\bbeater\b",
+    ],
+    "outdoor": [
+        r"\boutdoor\b",
+        r"\brough courts?\b",
+        r"\bblacktop\b",
+        r"\bgravel\b",
+        r"\btrail\b",
+        r"\bhiking\b",
+        r"\bwet ground\b",
+    ],
+    "width": [
+        r"\bwide\b",
+        r"\broomy\b",
+        r"\bspacious\b",
+        r"\bwide feet\b",
+        r"\bbroad feet\b",
+        r"\btoe ?box\b",
+        r"\btoebox\b",
+    ],
+    "style": [
+        r"\bstyle\b",
+        r"\bstylish\b",
+        r"\bfashion\b",
+        r"\boutfits?\b",
+        r"\bretro\b",
+        r"\bvintage\b",
+        r"\bclean white\b",
+        r"\bchunky\b",
+        r"\bdad shoe\b",
+        r"\by2k\b",
+    ],
+}
+
+EXPLICIT_QUERY_AVOID_PATTERNS = {
+    "lightweight": [
+        r"\bnot heavy\b",
+        r"\bnot bulky\b",
+        r"\bnot clunky\b",
+    ],
+    "width": [
+        r"\bnot narrow\b",
+        r"\bnot tight\b",
+        r"\bwide feet?\b",
+        r"\broomy fit\b",
+    ],
+    "breathability": [
+        r"\bnot hot\b",
+        r"\bkeep(?:ing)? .* cool\b",
+        r"\bcool[- ]running\b",
+    ],
+    "comfort": [
+        r"\bno break[- ]in\b",
+        r"\binstant comfort\b",
+        r"\bout of the box\b",
+    ],
+    "traction": [
+        r"\bnot slippery\b",
+        r"\bwon't slip\b",
+    ],
+}
+
+NEGATIVE_ATTRIBUTE_PATTERNS = {
+    "lightweight": [
+        r"\blighter\b",
+        r"\blightweight\b",
+        r"\bheavy\b",
+        r"\bbulky\b",
+        r"\bclunky\b",
+        r"\bweight\b",
+    ],
+    "breathability": [
+        r"\bbreathab",
+        r"\bcool(?:er)?(?:-running)?\b",
+        r"\bventilat",
+        r"\bairflow\b",
+        r"\bhot\b",
+        r"\bwarm\b",
+    ],
+    "support": [
+        r"\bsupport",
+        r"\bankle\b",
+        r"\bstability\b",
+        r"\bstable\b",
+        r"\bcontainment\b",
+        r"\blockdown\b",
+        r"\bheel security\b",
+        r"\bupper support\b",
+    ],
+    "comfort": [
+        r"\bcomfort",
+        r"\bcomfortable\b",
+        r"\bcushion",
+        r"\bcushioned\b",
+        r"\bwalking\b",
+        r"\bstanding\b",
+        r"\ball[ -]?day\b",
+        r"\bbreak[- ]in\b",
+        r"\bfirm\b",
+        r"\bharsh\b",
+        r"\buncomfortable\b",
+        r"\bblister",
+        r"\bpain\b",
+        r"\bhurt\b",
+        r"\blong walks?\b",
+        r"\blong runs?\b",
+    ],
+    "distance": [
+        r"\blong runs?\b",
+        r"\blong[- ]distance\b",
+        r"\bmarathon\b",
+        r"\bdistance sessions?\b",
+        r"\bdaily miles?\b",
+        r"\bhigh speeds? or long distances?\b",
+    ],
+    "traction": [
+        r"\btraction\b",
+        r"\bgrip\b",
+        r"\bdust(?:-sensitive)?\b",
+        r"\bslipper",
+        r"\bslip\b",
+        r"\bwet surfaces?\b",
+    ],
+    "durability": [
+        r"\bdurable\b",
+        r"\bdurability\b",
+        r"\boutsole\b",
+        r"\bwear\b",
+        r"\btear\b",
+        r"\bfragile\b",
+        r"\bcheap\b",
+        r"\bcrease",
+        r"\brough\b",
+    ],
+    "outdoor": [
+        r"\boutdoor\b",
+        r"\brough courts?\b",
+        r"\bblacktop\b",
+        r"\bgravel\b",
+        r"\btrail\b",
+        r"\bhiking\b",
+        r"\boutdoor suitability\b",
+        r"\boutdoor utility\b",
+    ],
+    "width": [
+        r"\bwide\b",
+        r"\broomy\b",
+        r"\bnarrow\b",
+        r"\btight\b",
+        r"\btoe ?box\b",
+        r"\btoebox\b",
+        r"\bwide[- ]foot",
+    ],
+    "style": [
+        r"\bugly\b",
+        r"\bunfinished\b",
+        r"\boff\b",
+        r"\bodd[- ]looking\b",
+    ],
+}
+
+STYLE_DESIRE_PATTERNS = {
+    "chunky": [
+        r"\bchunky\b",
+        r"\bdad shoe\b",
+    ],
+    "clean": [
+        r"\bclean\b",
+        r"\bwhite\b",
+        r"\bsimple\b",
+        r"\bminimal\b",
+        r"\bpolished\b",
+        r"\bbusiness[- ]casual\b",
+    ],
+    "retro": [
+        r"\bretro\b",
+        r"\bvintage\b",
+        r"\bold[- ]school\b",
+        r"\by2k\b",
+    ],
+}
+
+STYLE_AVOID_PATTERNS = {
+    "chunky": [
+        r"\bnot (?:a )?chunky\b",
+        r"\bnot (?:a )?dad shoe\b",
+        r"\bnot bulky\b",
+        r"\bnot clunky\b",
+        r"\bavoid chunky\b",
+        r"\bavoid bulky\b",
+    ],
+}
+
+STYLE_NEGATIVE_PATTERNS = {
+    "chunky": [
+        r"\bchunky\b",
+        r"\bbulky\b",
+        r"\bclunky\b",
+    ],
+    "polished": [
+        r"\bugly\b",
+        r"\bcheap\b",
+        r"\bunfinished\b",
+        r"\bloud\b",
+    ],
+    "generic": [
+        r"\bugly\b",
+        r"\bunfinished\b",
+    ],
+}
 
 BERT_MODEL_NAME = "all-MiniLM-L6-v2"  # 22 MB, 384-dim, fast on CPU
 BERT_WEIGHT = 0.4    # blend weight: final = (1-w)*prev_score + w*bert_score
@@ -164,13 +443,20 @@ def _build_document(row, category):
     shoe_name = _normalize_text(row.get("shoe_name"))
     positive_text = _normalize_text(row.get("positive_text"))
     negative_text = _normalize_text(row.get("negative_text"))
+    negative_sections = _extract_negative_sections(negative_text)
 
     # Positive side: shoe name + category + positive text (2x weight)
     pos_text = " ".join(part for part in [shoe_name, category, positive_text, positive_text] if part)
     pos_token_counts = Counter(_tokenize(pos_text))
 
     # Negative side: only the negative review text
-    neg_token_counts = Counter(_tokenize(negative_text))
+    neg_text = " ".join(
+        part for part in [
+            negative_sections["who_should_not_buy"],
+            negative_sections["cons"],
+        ] if part
+    )
+    neg_token_counts = Counter(_tokenize(neg_text))
 
     return {
         "id": re.sub(r"[^a-z0-9]+", "-", shoe_name.lower()).strip("-"),
@@ -178,6 +464,7 @@ def _build_document(row, category):
         "category": category,
         "positive_text": positive_text,
         "negative_text": negative_text,
+        "negative_sections": negative_sections,
         "sample_reviews": [text for text in [positive_text, negative_text] if text][:2],
         "footlocker_url": row.get("url", ""),
         "review_count": len([text for text in [positive_text, negative_text] if text]),
@@ -299,6 +586,141 @@ def _cosine_similarity(query_vector, query_norm, document_vector, document_norm)
         for token in query_vector
     )
     return dot_product / (query_norm * document_norm)
+
+
+def _extract_negative_sections(negative_text):
+    text = _normalize_text(negative_text)
+    if not text:
+        return {"who_should_not_buy": "", "cons": ""}
+
+    who_match = re.search(
+        r"Who should not buy:\s*(.+?)(?:Cons?:|$)",
+        text,
+        re.IGNORECASE | re.DOTALL,
+    )
+    cons_match = re.search(r"Cons?:\s*(.+)$", text, re.IGNORECASE | re.DOTALL)
+
+    if who_match or cons_match:
+        return {
+            "who_should_not_buy": _normalize_text(who_match.group(1) if who_match else ""),
+            "cons": _normalize_text(cons_match.group(1) if cons_match else ""),
+        }
+
+    # Sneakers data usually stores only a concise cons summary with no labels.
+    return {"who_should_not_buy": "", "cons": text}
+
+
+def _matches_any(patterns, text):
+    return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
+
+
+def _section_match_weight(sections, patterns):
+    matched_weight = 0.0
+    for section_name, section_weight in NEGATIVE_SECTION_WEIGHTS.items():
+        section_text = sections.get(section_name, "")
+        if section_text and _matches_any(patterns, section_text):
+            matched_weight = max(matched_weight, section_weight)
+    return matched_weight
+
+
+def _style_preferences(query_text):
+    lower = (query_text or "").lower()
+    return {
+        "wants_chunky": _matches_any(STYLE_DESIRE_PATTERNS["chunky"], lower),
+        "wants_clean": _matches_any(STYLE_DESIRE_PATTERNS["clean"], lower),
+        "wants_retro": _matches_any(STYLE_DESIRE_PATTERNS["retro"], lower),
+        "avoids_chunky": _matches_any(STYLE_AVOID_PATTERNS["chunky"], lower),
+        "wants_style": bool(
+            re.search(r"\bstyle\b|\bstylish\b|\bfashion\b|\boutfits?\b|\blooks? good\b", lower)
+        ),
+    }
+
+
+def _style_penalty(query_text, sections):
+    prefs = _style_preferences(query_text)
+    penalty = 0.0
+
+    if prefs["avoids_chunky"]:
+        penalty = max(penalty, _section_match_weight(sections, STYLE_NEGATIVE_PATTERNS["chunky"]))
+
+    if prefs["wants_clean"]:
+        penalty = max(penalty, _section_match_weight(sections, STYLE_NEGATIVE_PATTERNS["polished"]))
+    elif prefs["wants_style"]:
+        penalty = max(penalty, _section_match_weight(sections, STYLE_NEGATIVE_PATTERNS["generic"]))
+
+    # Wanting a chunky or retro style should not be penalized just because a
+    # shoe is described as bulky/chunky in its downsides.
+    if prefs["wants_chunky"] and penalty and penalty <= NEGATIVE_SECTION_WEIGHTS["cons"]:
+        penalty = 0.0
+
+    return penalty
+
+
+def _requested_penalty_attributes(query_text, category):
+    lower = (query_text or "").lower()
+    requested = set()
+
+    for attribute, patterns in QUERY_ATTRIBUTE_PATTERNS.items():
+        if any(re.search(pattern, lower) for pattern in patterns):
+            requested.add(attribute)
+
+    for attribute, patterns in EXPLICIT_QUERY_AVOID_PATTERNS.items():
+        if _matches_any(patterns, lower):
+            requested.add(attribute)
+
+    if category == "basketball":
+        if re.search(r"\bheavy\b.*\bcenter\b|\bcenter\b.*\bheavy\b", lower):
+            requested.update({"support", "comfort"})
+            requested.discard("lightweight")
+        if re.search(r"\bpoint guard\b", lower):
+            requested.update({"lightweight", "traction"})
+
+    if category == "running" and re.search(r"\bmarathon\b|\blong runs?\b|\bdaily miles?\b", lower):
+        requested.add("distance")
+
+    return requested
+
+
+def _explicit_avoid_attributes(query_text):
+    lower = (query_text or "").lower()
+    avoided = set()
+    for attribute, patterns in EXPLICIT_QUERY_AVOID_PATTERNS.items():
+        if _matches_any(patterns, lower):
+            avoided.add(attribute)
+    return avoided
+
+
+def _expert_penalty(query_text, category, shoe):
+    requested = _requested_penalty_attributes(query_text, category)
+    if not requested:
+        return 0.0, []
+
+    explicit_avoids = _explicit_avoid_attributes(query_text)
+    attribute_weights = {}
+    sections = shoe.get("negative_sections") or _extract_negative_sections(shoe.get("negative_text", ""))
+
+    for attribute in requested:
+        if attribute == "style":
+            continue
+        patterns = NEGATIVE_ATTRIBUTE_PATTERNS.get(attribute, [])
+        if not patterns:
+            continue
+        weight = _section_match_weight(sections, patterns)
+        if attribute in explicit_avoids and weight:
+            weight = min(1.0, weight + 0.15)
+        if weight:
+            attribute_weights[attribute] = max(attribute_weights.get(attribute, 0.0), weight)
+
+    if "style" in requested:
+        style_weight = _style_penalty(query_text, sections)
+        if style_weight:
+            attribute_weights["style"] = max(attribute_weights.get("style", 0.0), style_weight)
+
+    if not attribute_weights:
+        return 0.0, []
+
+    penalty = min(1.0, sum(attribute_weights.values()) / max(len(requested), 1))
+    return penalty, sorted(attribute_weights)
 
 
 def _query_tags(query_vector, shoe, limit=5):
@@ -587,6 +1009,7 @@ def search_shoes(query="", category="", use_case="", limit=12):
         category_filter = _infer_category(f"{query} {use_case}")
 
     query_text = " ".join(part for part in [query, use_case, category_filter] if part)
+    requested_attributes = sorted(_requested_penalty_attributes(query_text, category_filter))
     query_vector, query_norm = _make_query_vector(query_text)
 
     # Pre-compute Foot Locker SVD similarities for lifestyle/sneakers queries
@@ -616,13 +1039,9 @@ def search_shoes(query="", category="", use_case="", limit=12):
         if pos_sim <= 0 and bert_sim < BERT_MIN_SIM:
             continue
 
-        # Penalize if query terms appear in the negative review text
-        neg_sim = _cosine_similarity(
-            query_vector,
-            query_norm,
-            shoe["neg_tfidf_vector"],
-            shoe["neg_vector_norm"],
-        )
+        # Penalize only when the negative review text explicitly conflicts
+        # with what the user asked for in "Who should not buy" or "Cons".
+        neg_sim, penalty_attributes = _expert_penalty(query_text, category_filter, shoe)
         tfidf_sim = max(0.0, pos_sim - NEG_PENALTY * neg_sim)
 
         # Blend in Foot Locker SVD signal ONLY if the shoe has sufficient user reviews
@@ -664,8 +1083,13 @@ def search_shoes(query="", category="", use_case="", limit=12):
             special_badges.append("🎯 Direct Name Match")
         if svd_reason:
             special_badges.append(f"✨ Matches {svd_reason}")
-        if neg_sim > 0.05:
-            special_badges.append("⚠️ Expert Penalty Applied")
+        if neg_sim > NEGATIVE_BADGE_THRESHOLD:
+            if penalty_attributes:
+                special_badges.append(
+                    f"⚠️ Expert Penalty Applied ({', '.join(penalty_attributes)})"
+                )
+            else:
+                special_badges.append("⚠️ Expert Penalty Applied")
 
         results.append(
             {
@@ -701,6 +1125,6 @@ def search_shoes(query="", category="", use_case="", limit=12):
             "query": query,
             "category": category_filter,
             "use_case": use_case,
-            "requested_attributes": [],
+            "requested_attributes": requested_attributes,
         },
     }
