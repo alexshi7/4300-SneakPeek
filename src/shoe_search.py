@@ -384,6 +384,20 @@ BERT_MODEL_NAME = "all-MiniLM-L6-v2"  # 22 MB, 384-dim, fast on CPU
 BERT_WEIGHT = 0.4    # blend weight: final = (1-w)*prev_score + w*bert_score
 BERT_MIN_SIM = 0.25  # minimum BERT similarity to include a shoe that has no TF-IDF overlap
 
+# Free-form user negation: "I don't like carbon", "hate heavy shoes", "no carbon plate"
+# These strip negated terms from the positive query and penalize shoes that match them.
+USER_NEG_PENALTY = 1.5   # multiplier against negated-term cosine sim; stronger than NEG_PENALTY
+_NEGATION_RE = re.compile(
+    r"\b(?:don'?t|do\s+not|doesn'?t|does\s+not|hate|dislike|avoid|without|never)"
+    r"(?:\s+(?:like|want|prefer|need|use))?"  # optional bridge word
+    r"\s+((?:[a-z]+\s+){0,3}[a-z]+)",         # capture up to 4 words after
+    re.IGNORECASE,
+)
+_NO_NOT_RE = re.compile(
+    r"\b(?:no|not)\s+(?:a\s+fan\s+of\s+)?((?:[a-z]+\s+){0,1}[a-z]+)",
+    re.IGNORECASE,
+)
+
 _FL_SVD_UNAVAILABLE = object()  # sentinel distinct from None
 _BERT_UNAVAILABLE = object()
 
@@ -1003,22 +1017,56 @@ def _bert_similarities(query_text):
     return {shoe_id: float(sim) for shoe_id, sim in zip(index["shoe_ids"], sims)}
 
 
+def _parse_query(text):
+    """
+    Split a natural-language query into what the user wants vs. what they
+    explicitly don't want.
+
+    Returns:
+        positive_text  – original text with negation phrases removed;
+                         safe to feed into TF-IDF and BERT.
+        negated_tokens – set of IDF-tokenized terms the user rejected
+                         (e.g. "I don't like carbon" → {"carbon"}).
+    """
+    negated_tokens = set()
+    cleaned = text
+
+    for pattern in (_NEGATION_RE, _NO_NOT_RE):
+        for match in pattern.finditer(text):
+            negated_tokens.update(_tokenize(match.group(1)))
+            # Blank out the full matched span so it doesn't pollute positive text
+            cleaned = cleaned.replace(match.group(0), " ")
+
+    positive_text = re.sub(r"\s+", " ", cleaned).strip()
+    return positive_text, negated_tokens
+
+
 def search_shoes(query="", category="", use_case="", limit=12):
     category_filter = _normalize_category(category)
     if not category_filter:
         category_filter = _infer_category(f"{query} {use_case}")
 
-    query_text = " ".join(part for part in [query, use_case, category_filter] if part)
-    requested_attributes = sorted(_requested_penalty_attributes(query_text, category_filter))
-    query_vector, query_norm = _make_query_vector(query_text)
+    full_query_text = " ".join(part for part in [query, use_case, category_filter] if part)
+
+    # Strip negation phrases so "I don't like carbon" doesn't reward carbon shoes.
+    # positive_query_text is used for all scoring; negated_tokens drive a separate penalty.
+    positive_query_text, negated_tokens = _parse_query(full_query_text)
+
+    requested_attributes = sorted(_requested_penalty_attributes(full_query_text, category_filter))
+    query_vector, query_norm = _make_query_vector(positive_query_text)
+
+    # Build a penalty vector from whatever the user explicitly doesn't want
+    idf = _idf_values()
+    user_neg_vector = {t: idf[t] for t in negated_tokens if t in idf}
+    user_neg_norm = math.sqrt(sum(w * w for w in user_neg_vector.values())) if user_neg_vector else 0.0
 
     # Pre-compute Foot Locker SVD similarities for lifestyle/sneakers queries
     fl_sims = {}
     if category_filter == "sneakers":
-        fl_sims = _fl_svd_similarities(query_text)
+        fl_sims = _fl_svd_similarities(positive_query_text)
 
-    # Pre-compute BERT semantic similarities for all categories
-    bert_sims = _bert_similarities(query_text)
+    # Pre-compute BERT semantic similarities using only what the user wants
+    bert_sims = _bert_similarities(positive_query_text)
 
     results = []
     for shoe in _indexed_catalog():
@@ -1041,7 +1089,7 @@ def search_shoes(query="", category="", use_case="", limit=12):
 
         # Penalize only when the negative review text explicitly conflicts
         # with what the user asked for in "Who should not buy" or "Cons".
-        neg_sim, penalty_attributes = _expert_penalty(query_text, category_filter, shoe)
+        neg_sim, penalty_attributes = _expert_penalty(full_query_text, category_filter, shoe)
         tfidf_sim = max(0.0, pos_sim - NEG_PENALTY * neg_sim)
 
         # Blend in Foot Locker SVD signal ONLY if the shoe has sufficient user reviews
@@ -1059,6 +1107,16 @@ def search_shoes(query="", category="", use_case="", limit=12):
         # Blend BERT semantic similarity with the expert (TF-IDF ± SVD) score.
         # BERT catches meaning-level matches; expert score catches term-level precision.
         final_sim = (1 - BERT_WEIGHT) * expert_sim + BERT_WEIGHT * bert_sim
+
+        # Penalize shoes whose positive reviews strongly match what the user said they dislike.
+        # e.g. "I don't like carbon" → carbon shoe reviews score high → subtract penalty.
+        if user_neg_vector:
+            user_neg_sim = _cosine_similarity(
+                user_neg_vector, user_neg_norm,
+                shoe["tfidf_vector"], shoe["vector_norm"],
+            )
+            final_sim = max(0.0, final_sim - USER_NEG_PENALTY * user_neg_sim)
+
         if final_sim <= 0:
             continue
         
