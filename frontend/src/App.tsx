@@ -5,7 +5,7 @@ import Chat from './Chat'
 import { SearchResponse, Sneaker } from './types'
 
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
-const VERSION_LABEL = 'Version 4.0' //changed by Aaron ("4.0" cause it's for po4) to reflect new SVD match reason and penalty warning badge in the UI
+const VERSION_LABEL = 'Version 4.1' //changed by Aaron ("4.0" cause it's for po4) to reflect new SVD match reason and penalty warning badge in the UI
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
@@ -118,52 +118,39 @@ function App(): JSX.Element {
           <article key={sneaker.id} className="episode-item">
             <div className="card-topline">
               <span className="category-pill">{sneaker.category}</span>
-              <span className="episode-rating">Match {sneaker.match_score}</span>
+              <span className="episode-rating">Match {sneaker.match_score}%</span>
             </div>
             <h3 className="episode-title">{sneaker.shoe_name}</h3>
-            <p className="episode-desc">
-              Reviews analyzed: {sneaker.review_count}
-              {sneaker.signature_player ? ` • Signature: ${sneaker.signature_player}` : ''}
-            </p>
-            <p className="episode-desc">
-              {[
-                sneaker.specs.price_usd ? `Price: $${sneaker.specs.price_usd}` : '',
-                sneaker.specs.traction_score ? `Traction: ${sneaker.specs.traction_score}` : '',
-                sneaker.specs.top_style ? `Top: ${sneaker.specs.top_style}` : '',
-              ]
-                .filter(Boolean)
-                .join(' • ')}
-            </p>
+            {sneaker.signature_player && (
+              <p className="episode-desc">Signature: {sneaker.signature_player}</p>
+            )}
 
-            {/* Aaron changed this part to add penalty warning style */}
-            {/* <p className="episode-desc">
-              Top review evidence: {sneaker.match_reasons.join(' • ') || 'General text overlap'}
-            </p>
+            {/* Per-query feature tags — unique to this shoe for this search */}
             <div className="signal-row">
-              <span>Lightweight</span>
-              <span>Traction</span>
-              <span>Style</span>
-              <span>Support</span>
-            </div> */}
-            <p className="episode-desc">Top review evidence:</p>
-            <div className="signal-row">
-              {sneaker.match_reasons.length > 0 ? (
-                sneaker.match_reasons.map((reason, index) => {
+              {sneaker.top_terms.map((term, index) => (
+                <span key={index}>{term}</span>
+              ))}
+            </div>
+
+            {/* Special system badges (name match, SVD, penalty) — only shown when present */}
+            {sneaker.match_reasons.length > 0 && (
+              <div className="signal-row">
+                {sneaker.match_reasons.map((reason, index) => {
                   let badgeClass = '';
                   if (reason.includes('Penalty')) badgeClass = 'penalty-warning';
                   if (reason.includes('SVD')) badgeClass = 'svd-match';
-                  if (reason.includes('Name')) badgeClass = 'name-match'; // <-- NEW LINE
-
+                  if (reason.includes('Name')) badgeClass = 'name-match';
                   return (
                     <span key={index} className={badgeClass}>
                       {reason}
                     </span>
                   );
-                })
-              ) : (
-                <span>General text overlap</span>
-              )}
-            </div>
+                })}
+              </div>
+            )}
+
+            {/* Review-based evidence sentence derived from actual review text */}
+            <p className="episode-desc">{sneaker.review_evidence}</p>
 
             <p className="episode-desc review-snippet">
               "{sneaker.sample_reviews[0] || 'No sample review available.'}"

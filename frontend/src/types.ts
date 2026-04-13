@@ -8,6 +8,7 @@ export interface Sneaker {
   review_signals: Record<string, number>
   top_terms: string[]
   match_reasons: string[]
+  review_evidence: string
   sample_reviews: string[]
   footlocker_url: string
   specs: {

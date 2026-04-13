@@ -101,12 +101,18 @@ FL_SVD_K = 20        # latent dimensions
 FL_SVD_WEIGHT = 0.25  # blend weight: final = (1-w)*tfidf + w*svd
 NEG_PENALTY = 0.5    # β: sim_expert = sim_pos - β * sim_neg, clamped ≥ 0
 
+BERT_MODEL_NAME = "all-MiniLM-L6-v2"  # 22 MB, 384-dim, fast on CPU
+BERT_WEIGHT = 0.4    # blend weight: final = (1-w)*prev_score + w*bert_score
+BERT_MIN_SIM = 0.25  # minimum BERT similarity to include a shoe that has no TF-IDF overlap
+
 _FL_SVD_UNAVAILABLE = object()  # sentinel distinct from None
+_BERT_UNAVAILABLE = object()
 
 catalog_cache = None
 idf_cache = None
 indexed_catalog_cache = None
 fl_svd_cache = None  # None = not yet loaded; _FL_SVD_UNAVAILABLE = failed/missing
+bert_cache = None    # None = not yet loaded; _BERT_UNAVAILABLE = failed/missing
 
 
 def _data_dir():
@@ -295,27 +301,68 @@ def _cosine_similarity(query_vector, query_norm, document_vector, document_norm)
     return dot_product / (query_norm * document_norm)
 
 
-def _match_reasons(query_vector, shoe, category_filter):
-    reasons = []
-
-    # if category_filter and shoe["category"] == category_filter:
-    #     reasons.append(f"matches {category_filter} category")
-    # Removed the category matching string to clean up the UI and because the category filter is already displayed prominently in the UI design.
-
-    shared_terms = [
-        token for token in query_vector if token in shoe["tfidf_vector"]
+def _query_tags(query_vector, shoe, limit=5):
+    """Return the top matched terms between query and this specific shoe, ranked
+    by their contribution to the cosine similarity score."""
+    shared = [
+        (token, query_vector[token] * shoe["tfidf_vector"][token])
+        for token in query_vector
+        if token in shoe["tfidf_vector"]
     ]
-    shared_terms.sort(
-        key=lambda token: query_vector[token] * shoe["tfidf_vector"][token],
+    shared.sort(key=lambda x: x[1], reverse=True)
+    tags = [t for t, _ in shared[:limit]]
+    # Fall back to the shoe's own top terms if there's no query overlap
+    if not tags:
+        tags = shoe["top_terms"][:limit]
+    return tags
+
+
+def _review_evidence(query_vector, shoe):
+    """Extract a human-readable evidence sentence from the shoe's review text
+    that is most relevant to the query."""
+    shared = sorted(
+        [
+            (t, query_vector[t] * shoe["tfidf_vector"][t])
+            for t in query_vector
+            if t in shoe["tfidf_vector"]
+        ],
+        key=lambda x: x[1],
         reverse=True,
     )
+    top_tokens = {t for t, _ in shared[:6]}
 
-    for token in shared_terms[:3]:
-        reasons.append(f"matched '{token}'")
+    pos_text = shoe.get("positive_text", "")
+    if not pos_text:
+        return "Matches based on general review text similarity."
 
-    if not reasons:
-        reasons.append("general text similarity")
-    return reasons
+    # Prefer the "Pros:" section when present
+    pros_match = re.search(r"Pros?:\s*(.+?)(?:Cons?:|$)", pos_text, re.IGNORECASE | re.DOTALL)
+    search_text = pros_match.group(1).strip() if pros_match else pos_text
+
+    # Split into clauses and find the one with the most overlap with the query
+    clauses = re.split(r"[,\n]", search_text)
+    best_clause = ""
+    best_overlap = 0
+    for clause in clauses:
+        clause = clause.strip()
+        if len(clause) < 12:
+            continue
+        clause_tokens = set(_tokenize(clause))
+        overlap = len(clause_tokens & top_tokens)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_clause = clause
+
+    if best_clause and best_overlap > 0:
+        if len(best_clause) > 110:
+            best_clause = best_clause[:110].rsplit(" ", 1)[0] + "\u2026"
+        return f'Reviewers highlight: "{best_clause.strip()}"'
+
+    # Fallback: name the top matched terms
+    if shared:
+        term_list = ", ".join(t for t, _ in shared[:3])
+        return f"Review text aligns with: {term_list}"
+    return "Matches based on general review text similarity."
 
 
 def _load_fl_svd():
@@ -471,6 +518,69 @@ def _fl_svd_similarities(query_text):
     return fl_results
 
 
+def _load_bert_index():
+    """
+    Encode every shoe's review text with a sentence-transformer model and cache
+    the resulting unit-normalized embedding matrix.  Returns None if the
+    sentence-transformers library is not installed or encoding fails.
+    """
+    global bert_cache
+    if bert_cache is not None:
+        return None if bert_cache is _BERT_UNAVAILABLE else bert_cache
+
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        bert_cache = _BERT_UNAVAILABLE
+        return None
+
+    try:
+        model = SentenceTransformer(BERT_MODEL_NAME)
+        catalog = _indexed_catalog()
+
+        # Encode shoe_name + category + positive review text for richest context
+        texts = [
+            f"{shoe['shoe_name']} {shoe['category']} {shoe['positive_text']}"
+            for shoe in catalog
+        ]
+        shoe_ids = [shoe["id"] for shoe in catalog]
+
+        embeddings = model.encode(
+            texts,
+            normalize_embeddings=True,  # unit vectors → dot product == cosine sim
+            show_progress_bar=False,
+            batch_size=64,
+        )  # shape: (n_shoes, 384)
+
+        bert_cache = {
+            "model": model,
+            "shoe_ids": shoe_ids,
+            "embeddings": embeddings,
+        }
+        return bert_cache
+    except Exception:
+        bert_cache = _BERT_UNAVAILABLE
+        return None
+
+
+def _bert_similarities(query_text):
+    """
+    Encode query_text and return cosine similarity to every shoe as a dict
+    {shoe_id: float}.  Returns {} if the BERT index is unavailable.
+    """
+    index = _load_bert_index()
+    if index is None:
+        return {}
+
+    q_vec = index["model"].encode(
+        [query_text], normalize_embeddings=True
+    )[0]  # (384,)
+
+    # Dot product of unit vectors == cosine similarity
+    sims = np.clip(index["embeddings"] @ q_vec, 0.0, 1.0)  # (n_shoes,)
+    return {shoe_id: float(sim) for shoe_id, sim in zip(index["shoe_ids"], sims)}
+
+
 def search_shoes(query="", category="", use_case="", limit=12):
     category_filter = _normalize_category(category)
     if not category_filter:
@@ -484,6 +594,9 @@ def search_shoes(query="", category="", use_case="", limit=12):
     if category_filter == "sneakers":
         fl_sims = _fl_svd_similarities(query_text)
 
+    # Pre-compute BERT semantic similarities for all categories
+    bert_sims = _bert_similarities(query_text)
+
     results = []
     for shoe in _indexed_catalog():
         if category_filter and shoe["category"] != category_filter:
@@ -495,7 +608,12 @@ def search_shoes(query="", category="", use_case="", limit=12):
             shoe["tfidf_vector"],
             shoe["vector_norm"],
         )
-        if pos_sim <= 0:
+        bert_sim = bert_sims.get(shoe["id"], 0.0)
+
+        # Keep shoe if it has TF-IDF overlap OR strong semantic similarity from BERT.
+        # This lets pure-semantic matches (e.g. "plush underfoot" ~ "cushioned") surface
+        # even when they share no exact tokens with the query.
+        if pos_sim <= 0 and bert_sim < BERT_MIN_SIM:
             continue
 
         # Penalize if query terms appear in the negative review text
@@ -506,30 +624,24 @@ def search_shoes(query="", category="", use_case="", limit=12):
             shoe["neg_vector_norm"],
         )
         tfidf_sim = max(0.0, pos_sim - NEG_PENALTY * neg_sim)
-        if tfidf_sim <= 0:
-            continue
 
-        # Blend in Foot Locker SVD signal when available for this shoe
-
-        # fl_sim = fl_sims.get(shoe["shoe_name"].lower())
-
-        # if fl_sim is not None:
-        #     final_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_sim
-        # else:
-        #     final_sim = tfidf_sim
-
-        #AARON CHANGED REST OF LOOP
         # Blend in Foot Locker SVD signal ONLY if the shoe has sufficient user reviews
         fl_data = fl_sims.get(shoe["shoe_name"].lower())
         svd_reason = None
-        
+
         # If the shoe is niche (< 15 reviews), rely completely on the TF-IDF (expert) score
         if fl_data is not None and shoe["review_count"] >= 15:
             fl_sim = fl_data["score"]
-            final_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_sim
+            expert_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_sim
             svd_reason = fl_data["reason"]
         else:
-            final_sim = tfidf_sim
+            expert_sim = tfidf_sim
+
+        # Blend BERT semantic similarity with the expert (TF-IDF ± SVD) score.
+        # BERT catches meaning-level matches; expert score catches term-level precision.
+        final_sim = (1 - BERT_WEIGHT) * expert_sim + BERT_WEIGHT * bert_sim
+        if final_sim <= 0:
+            continue
         
         # --- NEW TITLE BOOST LOGIC ---
         # Extract words from the user's search and the shoe's name
@@ -546,20 +658,14 @@ def search_shoes(query="", category="", use_case="", limit=12):
             title_boosted = True
         # -----------------------------
 
-        # Calculate base reasons
-        reasons = _match_reasons(query_vector, shoe, category_filter)
-
-        # Add the Name Match badge first so it shows up at the front
+        # Build special-badge reasons only (no "matched 'X'" keyword clutter)
+        special_badges = []
         if title_boosted:
-            reasons.insert(0, "🎯 Direct Name Match")
-        
-        # Append SVD Explainability
+            special_badges.append("🎯 Direct Name Match")
         if svd_reason:
-            reasons.append(f"✨ Matches {svd_reason}")
-        
-        # If the negative similarity is significant, flag it for the UI
-        if neg_sim > 0.05: 
-            reasons.append("⚠️ Expert Penalty Applied")
+            special_badges.append(f"✨ Matches {svd_reason}")
+        if neg_sim > 0.05:
+            special_badges.append("⚠️ Expert Penalty Applied")
 
         results.append(
             {
@@ -570,8 +676,9 @@ def search_shoes(query="", category="", use_case="", limit=12):
                 "review_count": shoe["review_count"],
                 "signature_player": None,
                 "review_signals": {},
-                "top_terms": shoe["top_terms"],
-                "match_reasons": reasons,
+                "top_terms": _query_tags(query_vector, shoe),
+                "match_reasons": special_badges,
+                "review_evidence": _review_evidence(query_vector, shoe),
                 "sample_reviews": shoe["sample_reviews"],
                 "footlocker_url": shoe["footlocker_url"],
                 "specs": {},
@@ -580,6 +687,13 @@ def search_shoes(query="", category="", use_case="", limit=12):
 
     results.sort(key=lambda item: (-item["match_score"], item["shoe_name"]))
     results = results[:limit]
+
+    # Normalize scores so the top result = 100% and others are shown relative to it
+    if results:
+        max_score = results[0]["match_score"]
+        if max_score > 0:
+            for r in results:
+                r["match_score"] = round((r["match_score"] / max_score) * 100, 1)
 
     return {
         "results": results,
