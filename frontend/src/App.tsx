@@ -1,45 +1,193 @@
-import { useEffect, useState } from 'react'
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from 'react'
 import './App.css'
 import SearchIcon from './assets/mag.png'
 import Chat from './Chat'
 import { SearchResponse, Sneaker } from './types'
 
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
-const VERSION_LABEL = 'Version 4.1' //changed by Aaron ("4.0" cause it's for po4) to reflect new SVD match reason and penalty warning badge in the UI
+const VERSION_LABEL = 'Version 4.1'
+const DEFAULT_USE_CASE =
+  "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style."
+const SEARCH_ERROR_MESSAGE = 'Unable to load sneaker matches right now. Try the search again in a moment.'
+
+interface SpecEntry {
+  label: string
+  value: string
+}
+
+const CARD_POSITIONS = ['10% 20%', '62% 24%', '82% 68%', '22% 72%', '50% 58%', '72% 14%']
+
+const capitalizeLabel = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1)
+
+const truncateText = (value: string, maxLength: number): string => {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, maxLength).trimEnd()}...`
+}
+
+const appendUnit = (value: string | number, unit: string): string => {
+  const text = String(value).trim()
+  return text.toLowerCase().includes(unit.toLowerCase()) ? text : `${text} ${unit}`
+}
+
+const formatPrice = (value: string | number): string => {
+  const text = String(value).trim()
+  return text.startsWith('$') ? text : `$${text}`
+}
+
+const buildSpecEntries = (sneaker: Sneaker): SpecEntry[] => {
+  const entries: SpecEntry[] = []
+  const { specs } = sneaker
+
+  if (specs.price_usd !== undefined) {
+    entries.push({ label: 'Price', value: formatPrice(specs.price_usd) })
+  }
+  if (specs.weight_oz !== undefined) {
+    entries.push({ label: 'Weight', value: appendUnit(specs.weight_oz, 'oz') })
+  }
+  if (specs.heel_stack_mm !== undefined) {
+    entries.push({ label: 'Heel stack', value: appendUnit(specs.heel_stack_mm, 'mm') })
+  }
+  if (specs.forefoot_stack_mm !== undefined) {
+    entries.push({ label: 'Forefoot stack', value: appendUnit(specs.forefoot_stack_mm, 'mm') })
+  }
+  if (specs.traction_score !== undefined) {
+    entries.push({ label: 'Traction', value: String(specs.traction_score) })
+  }
+  if (specs.breathability_score !== undefined) {
+    entries.push({ label: 'Breathability', value: String(specs.breathability_score) })
+  }
+  if (specs.top_style) {
+    entries.push({ label: 'Style', value: specs.top_style })
+  }
+  if (specs.ankle_support !== undefined) {
+    entries.push({ label: 'Ankle support', value: specs.ankle_support ? 'Yes' : 'No' })
+  }
+
+  return entries
+}
+
+const getReasonTone = (reason: string): string => {
+  if (reason.includes('Penalty')) return 'penalty'
+  if (reason.includes('SVD')) return 'svd'
+  if (reason.includes('Name')) return 'name'
+  return 'default'
+}
+
+function ShoeVisual({
+  imageUrl,
+  shoeName,
+  visualStyle,
+  featured,
+}: {
+  imageUrl?: string
+  shoeName: string
+  visualStyle: CSSProperties
+  featured: boolean
+}): JSX.Element {
+  const [hasImageError, setHasImageError] = useState(false)
+
+  if (!imageUrl || hasImageError) {
+    return (
+      <div
+        className={`result-card-visual ${featured ? 'featured-visual' : ''}`}
+        style={visualStyle}
+        aria-hidden="true"
+      />
+    )
+  }
+
+  return (
+    <img
+      className={`result-card-image ${featured ? 'featured-image' : ''}`}
+      src={imageUrl}
+      alt={shoeName}
+      loading="lazy"
+      onError={() => {
+        setHasImageError(true)
+      }}
+    />
+  )
+}
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
   const [catalogSize, setCatalogSize] = useState<number>(0)
   const [category, setCategory] = useState<string>('basketball')
-  const [useCase, setUseCase] = useState<string>(
-    "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style."
-  )
+  const [useCase, setUseCase] = useState<string>(DEFAULT_USE_CASE)
   const [sneakers, setSneakers] = useState<Sneaker[]>([])
   const [requestedAttributes, setRequestedAttributes] = useState<string[]>([])
+  const [isSearching, setIsSearching] = useState<boolean>(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     fetch('/api/config')
-      .then(r => r.json())
+      .then(async response => {
+        if (!response.ok) {
+          throw new Error('Config request failed')
+        }
+
+        return response.json()
+      })
       .then(data => {
-        setUseLlm(data.use_llm)
+        setUseLlm(Boolean(data.use_llm))
         setCatalogSize(data.catalog_size || 0)
       })
+      .catch(() => {
+        setUseLlm(false)
+        setErrorMessage(SEARCH_ERROR_MESSAGE)
+      })
   }, [])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.style.height = '0px'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`
+  }, [useCase])
 
   const runSearch = async (
     nextQuery: string = category,
     nextCategory: string = category,
     nextUseCase: string = useCase
   ): Promise<void> => {
-    const params = new URLSearchParams({
-      query: nextQuery,
-      category: nextCategory,
-      use_case: nextUseCase,
-    })
-    const response = await fetch(`/api/sneakers?${params.toString()}`)
-    const data: SearchResponse = await response.json()
-    setSneakers(data.results)
-    setRequestedAttributes(data.applied_filters.requested_attributes)
+    setIsSearching(true)
+    setErrorMessage(null)
+
+    try {
+      const params = new URLSearchParams({
+        query: nextQuery,
+        category: nextCategory,
+        use_case: nextUseCase,
+      })
+
+      const response = await fetch(`/api/sneakers?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error('Search request failed')
+      }
+
+      const data: SearchResponse = await response.json()
+      startTransition(() => {
+        setSneakers(data.results)
+        setRequestedAttributes(data.applied_filters.requested_attributes)
+      })
+    } catch {
+      startTransition(() => {
+        setSneakers([])
+        setRequestedAttributes([])
+      })
+      setErrorMessage(SEARCH_ERROR_MESSAGE)
+    } finally {
+      setIsSearching(false)
+    }
   }
 
   useEffect(() => {
@@ -48,131 +196,231 @@ function App(): JSX.Element {
     }
   }, [useLlm])
 
-  if (useLlm === null) return <></>
+  const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault()
+    void runSearch(category, category, useCase)
+  }
+
+  const handleCategorySelect = (nextCategory: string): void => {
+    setCategory(nextCategory)
+    void runSearch(nextCategory, nextCategory, useCase)
+  }
+
+  const topPick = sneakers[0]
+  const shortUseCase = truncateText(useCase.trim(), 108)
+  const heroNote = errorMessage
+    ? errorMessage
+    : requestedAttributes.length > 0
+      ? `Priority: ${requestedAttributes.join(', ')}.`
+      : 'Search by feel, traction, cushioning, support, or style.'
+  const resultsNote = topPick
+    ? `Showing ${sneakers.length} ${category} matches for "${shortUseCase}". ${requestedAttributes.length > 0 ? `Prioritizing ${requestedAttributes.join(', ')}.` : ''}`
+    : 'Pick a category and run a search to build the shortlist.'
+
+  if (useLlm === null) {
+    return (
+      <div className="app-loading">
+        <div className="app-loading-inner">
+          <p className="loading-brand">SneakPeek</p>
+          <p className="loading-copy">Loading review-backed sneaker intelligence...</p>
+          <div className="loading-dash" aria-hidden="true" />
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
-      <div className="top-text">
-        <span className="version-badge">{VERSION_LABEL}</span>
-        <div className="google-colors">
-          <h1 id="google-4">S</h1>
-          <h1 id="google-3">n</h1>
-          <h1 id="google-0-1">e</h1>
-          <h1 id="google-0-2">a</h1>
-          <h1 id="google-4">k</h1>
-          <h1 id="google-3">P</h1>
-          <h1 id="google-0-1">e</h1>
-          <h1 id="google-0-2">e</h1>
-          <h1 id="google-4">k</h1>
-        </div>
-        <p className="subheading">
-          Match a shoe category plus a detailed use case against {catalogSize} review-backed sneakers.
-        </p>
+    <div className={`app-shell ${useLlm ? 'llm-mode' : ''}`}>
+      <div className="page-glow page-glow-left" aria-hidden="true" />
+      <div className="page-glow page-glow-right" aria-hidden="true" />
 
-        <div className="category-row">
-          {CATEGORY_OPTIONS.map(option => (
-            <button
-              key={option}
-              type="button"
-              className={`category-chip ${category === option ? 'active' : ''}`}
-              onClick={() => setCategory(option)}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+      <header className="hero-shell">
+        <div className="hero-media" aria-hidden="true" />
 
-        <div className="use-case-shell" onClick={() => document.getElementById('use-case-input')?.focus()}>
-          <img src={SearchIcon} alt="search" />
-          <div className="use-case-content">
-            {!useCase && (
-              <span className="use-case-placeholder">
-                Describe the kind of shoe you want, how you play or run, and what matters most.
-              </span>
-            )}
-            <textarea
-              id="use-case-input"
-              className="use-case-box"
-              placeholder=""
-              value={useCase}
-              onChange={e => setUseCase(e.target.value)}
-              rows={4}
-              spellCheck={false}
-            />
+        <div className="hero-content">
+          <div className="hero-meta">
+            <span>{VERSION_LABEL}</span>
+            <span>{catalogSize} review-backed sneakers</span>
+            <span>{useLlm ? 'AI refine on' : 'Review-ranked shortlist'}</span>
           </div>
-        </div>
 
-        <button className="search-button" type="button" onClick={() => void runSearch()}>
-          Find Matches
-        </button>
-
-        {requestedAttributes.length > 0 && (
-          <p className="request-summary">
-            Interpreted priorities: {requestedAttributes.join(', ')}
+          <p className="brand-mark">SneakPeek</p>
+          <h1 className="hero-title"></h1>
+          <p className="hero-copy">
+            Keep the search simple. Pick a lane and describe what matters most. SneakPeek turns real sneaker reviews
+            into a tight shortlist instead of a wall of options.
           </p>
+
+          <div className="category-row" role="tablist" aria-label="Sneaker category">
+            {CATEGORY_OPTIONS.map(option => (
+              <button
+                key={option}
+                type="button"
+                role="tab"
+                aria-selected={category === option}
+                className={`category-chip ${category === option ? 'active' : ''}`}
+                onClick={() => handleCategorySelect(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+
+          <form className="search-panel" onSubmit={handleSubmit}>
+            <label className="query-label" htmlFor="use-case-input">
+              Describe the shoe you want
+            </label>
+
+            <div className="query-field" onClick={() => textareaRef.current?.focus()}>
+              <img src={SearchIcon} alt="" aria-hidden="true" />
+              <textarea
+                ref={textareaRef}
+                id="use-case-input"
+                className="use-case-box"
+                value={useCase}
+                onChange={event => setUseCase(event.target.value)}
+                onKeyDown={event => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault()
+                    void runSearch(category, category, useCase)
+                  }
+                }}
+                rows={3}
+                spellCheck={false}
+              />
+            </div>
+
+            <div className="hero-actions">
+              <button className="search-button" type="submit" disabled={isSearching}>
+                {isSearching ? 'Scanning Reviews...' : 'Find Matches'}
+              </button>
+              <p className="search-note">{heroNote}</p>
+            </div>
+          </form>
+        </div>
+      </header>
+
+      <main className="page-content">
+        <section className="results-shell">
+          <div className="results-bar">
+            <div className="results-heading">
+              <p className="section-kicker">Matches</p>
+              <h2>{topPick ? `${capitalizeLabel(category)} shortlist` : 'No matches loaded'}</h2>
+            </div>
+            <p className="results-note">{resultsNote}</p>
+          </div>
+
+          {sneakers.length > 0 ? (
+            <div className="result-grid">
+              {sneakers.map((sneaker, index) => {
+                const isFeatured = index === 0
+                const hasPenalty = sneaker.match_reasons.some(reason => reason.includes('Penalty'))
+                const specEntries = buildSpecEntries(sneaker).slice(0, isFeatured ? 4 : 2)
+                const reasonEntries = sneaker.match_reasons.slice(0, isFeatured ? 3 : 2)
+                const evidenceText = truncateText(sneaker.review_evidence, isFeatured ? 220 : 110)
+                const reviewSnippet = truncateText(
+                  sneaker.sample_reviews[0] || 'No sample review available.',
+                  isFeatured ? 180 : 110
+                )
+                const visualStyle = {
+                  '--card-shoe-position': CARD_POSITIONS[index % CARD_POSITIONS.length],
+                } as CSSProperties
+
+                return (
+                  <article key={sneaker.id} className={`result-card ${isFeatured ? 'featured' : ''}`}>
+                    <div className="result-card-copy">
+                      <div className="result-card-head">
+                        <div>
+                          <p className="result-category">{sneaker.category}</p>
+                          <h3>{sneaker.shoe_name}</h3>
+                        </div>
+                        <span className="result-score">Match {sneaker.match_score}%</span>
+                      </div>
+
+                      {sneaker.signature_player && (
+                        <p className="result-signature">Signature: {sneaker.signature_player}</p>
+                      )}
+
+                      <p className="result-copy">{evidenceText}</p>
+
+                      {reasonEntries.length > 0 && (
+                        <ul className="reason-chip-row">
+                          {reasonEntries.map((reason, reasonIndex) => (
+                            <li
+                              key={reasonIndex}
+                              className={`reason-chip reason-chip-${getReasonTone(reason)}`}
+                            >
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className="result-card-side">
+                      <ShoeVisual
+                        imageUrl={sneaker.image_url}
+                        shoeName={sneaker.shoe_name}
+                        visualStyle={visualStyle}
+                        featured={isFeatured}
+                      />
+
+                      {specEntries.length > 0 && (
+                        <dl className={`spec-list ${isFeatured ? '' : 'compact'}`}>
+                          {specEntries.map(entry => (
+                            <div key={entry.label}>
+                              <dt>{entry.label}</dt>
+                              <dd>{entry.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+
+                      {isFeatured ? (
+                        <blockquote className="review-quote">"{reviewSnippet}"</blockquote>
+                      ) : (
+                        <p className="mini-review">"{reviewSnippet}"</p>
+                      )}
+
+                      {hasPenalty && sneaker.expert_penalty_detail && (
+                        <details className="penalty-detail">
+                          <summary>See penalty detail</summary>
+                          <p className="penalty-detail-text">{sneaker.expert_penalty_detail}</p>
+                        </details>
+                      )}
+
+                      {sneaker.footlocker_url && (
+                        <a className="shoe-link" href={sneaker.footlocker_url} target="_blank" rel="noreferrer">
+                          View source reviews
+                        </a>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <h3>No matches loaded</h3>
+              <p>{errorMessage || 'Try a different category or tighten the use case to surface a stronger fit.'}</p>
+            </div>
+          )}
+        </section>
+
+        {useLlm && (
+          <details className="refine-panel">
+            <summary>Refine with AI</summary>
+            <Chat
+              onSearchTerm={(term: string) => {
+                const refinedTerm = term.trim()
+                if (!refinedTerm) return
+                setUseCase(refinedTerm)
+                void runSearch(category, category, refinedTerm)
+              }}
+            />
+          </details>
         )}
-      </div>
-
-      <div id="answer-box">
-        {sneakers.map(sneaker => {
-          const hasPenalty = sneaker.match_reasons.some(reason => reason.includes('Penalty'))
-
-          return (
-            <article key={sneaker.id} className="episode-item">
-              <div className="card-topline">
-                <span className="category-pill">{sneaker.category}</span>
-                <span className="episode-rating">Match {sneaker.match_score}%</span>
-              </div>
-              <h3 className="episode-title">{sneaker.shoe_name}</h3>
-              {sneaker.signature_player && (
-                <p className="episode-desc">Signature: {sneaker.signature_player}</p>
-              )}
-
-              <div className="signal-row">
-                {sneaker.top_terms.map((term, index) => (
-                  <span key={index}>{term}</span>
-                ))}
-              </div>
-
-              {sneaker.match_reasons.length > 0 && (
-                <div className="signal-row">
-                  {sneaker.match_reasons.map((reason, index) => {
-                    let badgeClass = ''
-                    if (reason.includes('Penalty')) badgeClass = 'penalty-warning'
-                    if (reason.includes('SVD')) badgeClass = 'svd-match'
-                    if (reason.includes('Name')) badgeClass = 'name-match'
-                    return (
-                      <span key={index} className={badgeClass}>
-                        {reason}
-                      </span>
-                    )
-                  })}
-                </div>
-              )}
-
-              {hasPenalty && sneaker.expert_penalty_detail && (
-                <details className="penalty-detail">
-                  <summary>See more</summary>
-                  <p className="penalty-detail-text">{sneaker.expert_penalty_detail}</p>
-                </details>
-              )}
-
-              <p className="episode-desc">{sneaker.review_evidence}</p>
-
-              <p className="episode-desc review-snippet">
-                "{sneaker.sample_reviews[0] || 'No sample review available.'}"
-              </p>
-              {sneaker.footlocker_url && (
-                <a className="shoe-link" href={sneaker.footlocker_url} target="_blank" rel="noreferrer">
-                  View source reviews
-                </a>
-              )}
-            </article>
-          )
-        })}
-      </div>
-
-      {useLlm && <Chat onSearchTerm={(term: string) => setUseCase(term)} />}
+      </main>
     </div>
   )
 }

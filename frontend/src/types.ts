@@ -12,6 +12,7 @@ export interface Sneaker {
   review_evidence: string
   sample_reviews: string[]
   footlocker_url: string
+  image_url?: string
   specs: {
     weight_oz?: string | number
     heel_stack_mm?: string | number
