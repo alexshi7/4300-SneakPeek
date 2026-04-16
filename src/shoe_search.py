@@ -99,6 +99,7 @@ CATEGORY_HINTS = {
 FL_REVIEWS_PATH = "data/footlocker_reviews_cleaned.csv"
 FL_SVD_K = 20        # latent dimensions
 FL_SVD_WEIGHT = 0.25  # blend weight: final = (1-w)*tfidf + w*svd
+FL_SVD_MIN_REVIEWS = 15
 NEG_PENALTY = 0.5    # β: sim_expert = sim_pos - β * sim_neg, clamped ≥ 0
 NEGATIVE_SECTION_WEIGHTS = {
     "who_should_not_buy": 0.7,
@@ -840,11 +841,13 @@ def _load_fl_svd():
     # Aggregate review tokens per shoe (normalize by total tokens to handle
     # unequal review counts — shoes with more reviews won't dominate)
     shoe_tokens = {}
+    fl_review_counts = Counter()
     with open(path, newline="", encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
             name = _normalize_text(row.get("shoe_name", "")).lower()
             if name not in sneakers_shoes:
                 continue
+            fl_review_counts[name] += 1
             tokens = _tokenize(row.get("clean_review_text", ""))
             if name not in shoe_tokens:
                 shoe_tokens[name] = Counter()
@@ -898,6 +901,7 @@ def _load_fl_svd():
         "s_k": s_k,
         "vocab_idx": vocab_idx,
         "idf": idf,
+        "fl_review_counts": dict(fl_review_counts),
     }
     return fl_svd_cache
 
@@ -935,34 +939,42 @@ def _fl_svd_similarities(query_text):
         return {}
     q_svd = q_svd / q_svd_norm
 
-    #Aaron did the rest of the method here to get the top contributing dimension and its concept words for each shoe, and format the reason string accordingly.
-    # Calculate similarities and dimension contributions
-    shoe_vecs = model["shoe_vecs"]
-    sims = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
-    
-    # NEW: Determine WHICH dimension contributed the most to the match
-    contributions = shoe_vecs * q_svd
-    top_dims = np.argmax(contributions, axis=1)
-    
-    # Reverse the vocabulary dictionary to look up words
+    # Calculate similarities and per-dimension contributions for every shoe
+    shoe_vecs     = model["shoe_vecs"]
+    sims          = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
+    contributions = shoe_vecs * q_svd   # (n_shoes, k) — signed contribution per dim
+
     idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
+
+    def _dim_label(dim, sign_positive):
+        """Return top concept words for a dimension in the direction of activation."""
+        row = model["Vt_k"][dim]
+        top_idx = np.argsort(row)[::-1][:3] if sign_positive else np.argsort(row)[:3]
+        words = ", ".join(idx_to_vocab.get(j, "") for j in top_idx)
+        sign_str = "+" if sign_positive else "−"
+        return f"Dim {dim+1} [{sign_str}] ({words})"
 
     fl_results = {}
     for i, name in enumerate(model["shoes"]):
-        best_k = top_dims[i]
-        row_k = model["Vt_k"][best_k, :]
-        
-        # If the activation is positive, get the top positive words. If negative, get the most negative.
-        if q_svd[best_k] > 0:
-            top_indices = np.argsort(row_k)[::-1][:3]
-        else:
-            top_indices = np.argsort(row_k)[:3]
-            
-        concept_words = [idx_to_vocab.get(idx, "") for idx in top_indices]
-        
+        c_row = contributions[i]
+
+        # Top positively contributing dimension (query and shoe agree)
+        pos_dim = int(np.argmax(c_row))
+        pos_label = _dim_label(pos_dim, q_svd[pos_dim] >= 0)
+
+        # Top counter-dimension: where shoe and query most disagree
+        neg_dim  = int(np.argmin(c_row))
+        neg_contrib = float(c_row[neg_dim])
+
+        reason = f"SVD {pos_label}"
+        if neg_contrib < -0.01:
+            neg_label = _dim_label(neg_dim, q_svd[neg_dim] >= 0)
+            reason += f" / counter: {neg_label}"
+
         fl_results[name] = {
             "score": float(sims[i]),
-            "reason": f"SVD Dim {best_k+1} ({', '.join(concept_words)})"
+            "reason": reason,
+            "fl_review_count": int(model["fl_review_counts"].get(name, 0)),
         }
 
     return fl_results
@@ -1106,12 +1118,12 @@ def search_shoes(query="", category="", use_case="", limit=12):
         neg_sim, penalty_attributes = _expert_penalty(full_query_text, category_filter, shoe)
         tfidf_sim = max(0.0, pos_sim - NEG_PENALTY * neg_sim)
 
-        # Blend in Foot Locker SVD signal ONLY if the shoe has sufficient user reviews
+        # Blend in Foot Locker SVD signal only when the Foot Locker review corpus
+        # has enough reviews for this shoe to produce a stable latent embedding.
         fl_data = fl_sims.get(shoe["shoe_name"].lower())
         svd_reason = None
 
-        # If the shoe is niche (< 15 reviews), rely completely on the TF-IDF (expert) score
-        if fl_data is not None and shoe["review_count"] >= 15:
+        if fl_data is not None and fl_data["fl_review_count"] >= FL_SVD_MIN_REVIEWS:
             fl_sim = fl_data["score"]
             expert_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_sim
             svd_reason = fl_data["reason"]
