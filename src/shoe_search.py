@@ -381,10 +381,6 @@ STYLE_NEGATIVE_PATTERNS = {
     ],
 }
 
-BERT_MODEL_NAME = "all-MiniLM-L6-v2"  # 22 MB, 384-dim, fast on CPU
-BERT_WEIGHT = 0.4    # blend weight: final = (1-w)*prev_score + w*bert_score
-BERT_MIN_SIM = 0.25  # minimum BERT similarity to include a shoe that has no TF-IDF overlap
-
 # Free-form user negation: "I don't like carbon", "hate heavy shoes", "no carbon plate"
 # These strip negated terms from the positive query and penalize shoes that match them.
 USER_NEG_PENALTY = 1.5   # multiplier against negated-term cosine sim; stronger than NEG_PENALTY
@@ -400,13 +396,11 @@ _NO_NOT_RE = re.compile(
 )
 
 _FL_SVD_UNAVAILABLE = object()  # sentinel distinct from None
-_BERT_UNAVAILABLE = object()
 
 catalog_cache = None
 idf_cache = None
 indexed_catalog_cache = None
 fl_svd_cache = None  # None = not yet loaded; _FL_SVD_UNAVAILABLE = failed/missing
-bert_cache = None    # None = not yet loaded; _BERT_UNAVAILABLE = failed/missing
 
 
 def _data_dir():
@@ -980,69 +974,6 @@ def _fl_svd_similarities(query_text):
     return fl_results
 
 
-def _load_bert_index():
-    """
-    Encode every shoe's review text with a sentence-transformer model and cache
-    the resulting unit-normalized embedding matrix.  Returns None if the
-    sentence-transformers library is not installed or encoding fails.
-    """
-    global bert_cache
-    if bert_cache is not None:
-        return None if bert_cache is _BERT_UNAVAILABLE else bert_cache
-
-    try:
-        from sentence_transformers import SentenceTransformer
-    except ImportError:
-        bert_cache = _BERT_UNAVAILABLE
-        return None
-
-    try:
-        model = SentenceTransformer(BERT_MODEL_NAME)
-        catalog = _indexed_catalog()
-
-        # Encode shoe_name + category + positive review text for richest context
-        texts = [
-            f"{shoe['shoe_name']} {shoe['category']} {shoe['positive_text']}"
-            for shoe in catalog
-        ]
-        shoe_ids = [shoe["id"] for shoe in catalog]
-
-        embeddings = model.encode(
-            texts,
-            normalize_embeddings=True,  # unit vectors → dot product == cosine sim
-            show_progress_bar=False,
-            batch_size=64,
-        )  # shape: (n_shoes, 384)
-
-        bert_cache = {
-            "model": model,
-            "shoe_ids": shoe_ids,
-            "embeddings": embeddings,
-        }
-        return bert_cache
-    except Exception:
-        bert_cache = _BERT_UNAVAILABLE
-        return None
-
-
-def _bert_similarities(query_text):
-    """
-    Encode query_text and return cosine similarity to every shoe as a dict
-    {shoe_id: float}.  Returns {} if the BERT index is unavailable.
-    """
-    index = _load_bert_index()
-    if index is None:
-        return {}
-
-    q_vec = index["model"].encode(
-        [query_text], normalize_embeddings=True
-    )[0]  # (384,)
-
-    # Dot product of unit vectors == cosine similarity
-    sims = np.clip(index["embeddings"] @ q_vec, 0.0, 1.0)  # (n_shoes,)
-    return {shoe_id: float(sim) for shoe_id, sim in zip(index["shoe_ids"], sims)}
-
-
 def _parse_query(text):
     """
     Split a natural-language query into what the user wants vs. what they
@@ -1091,9 +1022,6 @@ def search_shoes(query="", category="", use_case="", limit=12):
     if category_filter == "sneakers":
         fl_sims = _fl_svd_similarities(positive_query_text)
 
-    # Pre-compute BERT semantic similarities using only what the user wants
-    bert_sims = _bert_similarities(positive_query_text)
-
     results = []
     for shoe in _indexed_catalog():
         if category_filter and shoe["category"] != category_filter:
@@ -1105,12 +1033,8 @@ def search_shoes(query="", category="", use_case="", limit=12):
             shoe["tfidf_vector"],
             shoe["vector_norm"],
         )
-        bert_sim = bert_sims.get(shoe["id"], 0.0)
 
-        # Keep shoe if it has TF-IDF overlap OR strong semantic similarity from BERT.
-        # This lets pure-semantic matches (e.g. "plush underfoot" ~ "cushioned") surface
-        # even when they share no exact tokens with the query.
-        if pos_sim <= 0 and bert_sim < BERT_MIN_SIM:
+        if pos_sim <= 0:
             continue
 
         # Penalize only when the negative review text explicitly conflicts
@@ -1130,9 +1054,7 @@ def search_shoes(query="", category="", use_case="", limit=12):
         else:
             expert_sim = tfidf_sim
 
-        # Blend BERT semantic similarity with the expert (TF-IDF ± SVD) score.
-        # BERT catches meaning-level matches; expert score catches term-level precision.
-        final_sim = (1 - BERT_WEIGHT) * expert_sim + BERT_WEIGHT * bert_sim
+        final_sim = expert_sim
 
         # Penalize shoes whose positive reviews strongly match what the user said they dislike.
         # e.g. "I don't like carbon" → carbon shoe reviews score high → subtract penalty.
