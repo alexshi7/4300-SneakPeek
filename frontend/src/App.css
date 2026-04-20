@@ -652,30 +652,45 @@ body::after {
   background: var(--surface);
 }
 
-.refine-panel {
-  margin-top: 1.2rem;
+.chat-floating {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 22rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.chat-toggle-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 1.1rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(201, 101, 62, 0.35);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.chat-toggle-btn:hover {
+  background: var(--accent-deep);
+  transform: translateY(-1px);
+}
+
+.chat-floating .chat-shell {
+  width: 22rem;
   border: 1px solid var(--line);
   background: var(--surface);
-}
-
-.refine-panel summary {
-  cursor: pointer;
-  padding: 0.95rem 1rem;
-  font-weight: 700;
-  color: var(--ink);
-  list-style: none;
-}
-
-.refine-panel summary::-webkit-details-marker {
-  display: none;
-}
-
-.refine-panel summary::after {
-  content: ' +';
-}
-
-.refine-panel[open] summary::after {
-  content: ' -';
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  border-radius: 6px;
+  overflow: hidden;
+  border-top: none;
 }
 
 .chat-shell {

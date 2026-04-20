@@ -125,6 +125,7 @@ function App(): JSX.Element {
   const [requestedAttributes, setRequestedAttributes] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [chatOpen, setChatOpen] = useState<boolean>(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -408,17 +409,25 @@ function App(): JSX.Element {
         </section>
 
         {useLlm && (
-          <details className="refine-panel">
-            <summary>Refine with AI</summary>
-            <Chat
-              onSearchTerm={(term: string) => {
-                const refinedTerm = term.trim()
-                if (!refinedTerm) return
-                setUseCase(refinedTerm)
-                void runSearch(category, category, refinedTerm)
-              }}
-            />
-          </details>
+          <div className="chat-floating">
+            <button
+              className="chat-toggle-btn"
+              onClick={() => setChatOpen(o => !o)}
+              aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
+            >
+              {chatOpen ? '✕' : 'Ask AI'}
+            </button>
+            {chatOpen && (
+              <Chat
+                onSearchTerm={(term: string) => {
+                  const refinedTerm = term.trim()
+                  if (!refinedTerm) return
+                  setUseCase(refinedTerm)
+                  void runSearch(category, category, refinedTerm)
+                }}
+              />
+            )}
+          </div>
         )}
       </main>
     </div>

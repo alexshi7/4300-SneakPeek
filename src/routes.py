@@ -15,7 +15,7 @@ from flask import jsonify, request, send_from_directory
 
 from shoe_search import load_catalog, search_shoes
 
-USE_LLM = False
+USE_LLM = True
 IMAGE_CACHE = {}
 IMAGE_TAG_PATTERNS = (
     re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.IGNORECASE),
