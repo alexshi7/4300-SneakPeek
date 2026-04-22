@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import SearchIcon from './assets/mag.png'
+import { Sneaker } from './types'
 
 interface Message {
   text: string
@@ -7,10 +8,11 @@ interface Message {
 }
 
 interface ChatProps {
+  sneakers: Sneaker[]
   onSearchTerm: (term: string) => void
 }
 
-function Chat({ onSearchTerm }: ChatProps): JSX.Element {
+function Chat({ sneakers, onSearchTerm }: ChatProps): JSX.Element { 
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
@@ -45,7 +47,7 @@ function Chat({ onSearchTerm }: ChatProps): JSX.Element {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, current_results: sneakers }), 
       })
 
       if (!response.ok) {

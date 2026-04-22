@@ -941,25 +941,26 @@ def _fl_svd_similarities(query_text):
     idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
 
     def _dim_label(dim, sign_positive):
-        """Return top concept words for a dimension in the direction of activation."""
+        """Return top concept words and the query match percentage for the UI."""
         row = model["Vt_k"][dim]
         top_idx = np.argsort(row)[::-1][:3] if sign_positive else np.argsort(row)[:3]
         words = ", ".join(idx_to_vocab.get(j, "") for j in top_idx)
-        sign_str = "+" if sign_positive else "−"
-        return f"Dim {dim+1} [{sign_str}] ({words})"
+        
+        # TA FIX: Calculate percentage match based on query activation
+        activation_pct = min(100, abs(float(q_svd[dim])) * 100)
+        return f"{activation_pct:.0f}% concept match ({words})"
 
     fl_results = {}
     for i, name in enumerate(model["shoes"]):
         c_row = contributions[i]
 
-        # Top positively contributing dimension (query and shoe agree)
         pos_dim = int(np.argmax(c_row))
         pos_label = _dim_label(pos_dim, q_svd[pos_dim] >= 0)
 
-        # Top counter-dimension: where shoe and query most disagree
         neg_dim  = int(np.argmin(c_row))
         neg_contrib = float(c_row[neg_dim])
 
+        # TA FIX: Simplified reason string to remove confusing "Dim X" jargon
         reason = f"SVD {pos_label}"
         if neg_contrib < -0.01:
             neg_label = _dim_label(neg_dim, q_svd[neg_dim] >= 0)
@@ -1069,17 +1070,21 @@ def search_shoes(query="", category="", use_case="", limit=12):
             continue
         
         # --- NEW TITLE BOOST LOGIC ---
-        # Extract words from the user's search and the shoe's name
         user_words = set(_tokenize(f"{query} {use_case}"))
         name_words = set(_tokenize(shoe["shoe_name"]))
-        
-        # Find how many words overlap (e.g., "nike dunk" -> 2 overlapping words)
         name_overlap = user_words.intersection(name_words)
         title_boosted = False
         
-        # If they matched at least 2 words from the title (or 1 if it's a 1-word shoe brand)
-        if len(name_overlap) >= 2 or (len(name_words) == 1 and len(name_overlap) == 1):
-            final_sim *= 3.0  # 300% score boost to guarantee top spots!
+        # Calculate how much of the shoe's actual name was matched
+        overlap_ratio = len(name_overlap) / max(len(name_words), 1)
+        
+        # TA Fix: Exact match of the entire name gets a massive boost (solves Air Max 270 issue)
+        if overlap_ratio == 1.0 and len(name_words) >= 1:
+            final_sim *= 3.5
+            title_boosted = True
+        # Partial match gets a scaled boost based on accuracy (addresses Peer 2's "too aggressive" note)
+        elif len(name_overlap) >= 2 or (len(name_words) == 1 and len(name_overlap) == 1):
+            final_sim *= (1.2 + overlap_ratio) # Scales gently between a 1.2x and 2.0x boost
             title_boosted = True
         # -----------------------------
 

@@ -335,7 +335,10 @@ function App(): JSX.Element {
                           <p className="result-category">{sneaker.category}</p>
                           <h3>{sneaker.shoe_name}</h3>
                         </div>
-                        <span className="result-score">Match {sneaker.match_score}%</span>
+                        {/* Peer Fix: Clearer top match indicator instead of forced 100% */}
+                        <span className="result-score">
+                          {isFeatured ? '🏆 Top Match' : `Match ${sneaker.match_score}%`}
+                        </span>
                       </div>
 
                       {sneaker.signature_player && (
@@ -419,6 +422,7 @@ function App(): JSX.Element {
             </button>
             {chatOpen && (
               <Chat
+                sneakers={sneakers} 
                 onSearchTerm={(term: string) => {
                   const refinedTerm = term.trim()
                   if (!refinedTerm) return

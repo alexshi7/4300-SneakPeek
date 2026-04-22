@@ -34,42 +34,45 @@ def register_chat_route(app, shoe_search):
     """Register the /api/chat SSE endpoint. Called from routes.py."""
 
     @app.route("/api/chat", methods=["POST"])
+    @app.route("/api/chat", methods=["POST"])
     def chat():
         data = request.get_json() or {}
         user_message = (data.get("message") or "").strip()
+        current_results = data.get("current_results", []) # <-- Reads from React!
+
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
 
         api_key = os.getenv("SPARK_API_KEY")
         if not api_key:
-            return jsonify({"error": "SPARK_API_KEY not set — add it to your .env file"}), 500
+            return jsonify({"error": "SPARK_API_KEY not set"}), 500
 
         client = LLMClient(api_key=api_key)
-        use_search, _ = llm_search_decision(client, user_message)
 
-        if use_search:
-            search_payload = shoe_search(query=user_message, use_case=user_message, limit=6)
-            sneakers = search_payload["results"]
+        if current_results:
             context_text = "\n\n---\n\n".join(
                 (
-                    f"Shoe: {shoe['shoe_name']}\n"
-                    f"Category: {shoe['category']}\n"
-                    f"Match score: {shoe['match_score']}\n"
-                    f"Reasons: {', '.join(shoe['match_reasons'])}\n"
-                    f"Top terms: {', '.join(shoe['top_terms'])}\n"
-                    f"Sample reviews: {' | '.join(shoe['sample_reviews'])}"
+                    f"Shoe: {shoe.get('shoe_name')}\n"
+                    f"Category: {shoe.get('category')}\n"
+                    f"Match score: {shoe.get('match_score')}\n"
+                    f"Reasons: {', '.join(shoe.get('match_reasons', []))}\n"
+                    f"Top terms: {', '.join(shoe.get('top_terms', []))}\n"
+                    f"Specs: {shoe.get('specs', 'No specs available')}\n"
+                    f"Sample reviews: {' | '.join(shoe.get('sample_reviews', []))}"
                 )
-                for shoe in sneakers
-            ) or "No matching sneakers found."
+                for shoe in current_results[:6] 
+            )
             messages = [
                 {
                     "role": "system",
                     "content": (
-                        "You are a sneaker recommendation assistant. Use only the provided sneaker results. "
-                        "Explain matches in terms of review evidence and explicitly say when physical measurements are unavailable."
+                        "You are a sneaker recommendation assistant helping a user who is looking at a specific list of sneakers. "
+                        "Use ONLY the provided sneaker results to answer their questions. "
+                        "Explain matches in terms of review evidence and explicitly say when physical measurements are unavailable. "
+                        "IMPORTANT: Do not use Markdown formatting like asterisks (*) or bold text (**). Output clean, plain text and use simple dashes (-) for lists."
                     ),
                 },
-                {"role": "user", "content": f"Sneaker information:\n\n{context_text}\n\nUser question: {user_message}"},
+                {"role": "user", "content": f"Currently displayed sneakers:\n\n{context_text}\n\nUser question: {user_message}"},
             ]
         else:
             messages = [
