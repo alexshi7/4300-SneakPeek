@@ -12,7 +12,7 @@ import Chat from './Chat'
 import { SearchResponse, Sneaker } from './types'
 
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
-const VERSION_LABEL = 'Version 4.1'
+const VERSION_LABEL = 'Version 5.0'
 const DEFAULT_USE_CASE =
   "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style."
 const SEARCH_ERROR_MESSAGE = 'Unable to load sneaker matches right now. Try the search again in a moment.'
