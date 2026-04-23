@@ -281,7 +281,7 @@ function App(): JSX.Element {
                 value={useCase}
                 onChange={event => setUseCase(event.target.value)}
                 onKeyDown={event => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault()
                     void runSearch(category, category, useCase)
                   }
