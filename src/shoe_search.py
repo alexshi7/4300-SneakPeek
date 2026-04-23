@@ -115,7 +115,7 @@ NEGATIVE_SECTION_WEIGHTS = {
     "who_should_not_buy": 0.7,
     "cons": 0.45,
 }
-NEGATIVE_BADGE_THRESHOLD = 0.12
+NEGATIVE_BADGE_THRESHOLD = 0.18
 
 QUERY_ATTRIBUTE_PATTERNS = {
     "lightweight": [
@@ -1415,7 +1415,7 @@ def search_shoes(query="", category="", use_case="", limit=12):
         if svd_reason:
             special_badges.append(f"✨ Matches {svd_reason}")
         if neg_sim > NEGATIVE_BADGE_THRESHOLD:
-            special_badges.append("⚠️ Expert Penalty Applied")
+            special_badges.append("⚠️ Expert's Note")
             expert_penalty_detail = _expert_penalty_detail(shoe)
 
         results.append(

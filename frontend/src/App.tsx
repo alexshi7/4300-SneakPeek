@@ -74,7 +74,7 @@ const buildSpecEntries = (sneaker: Sneaker): SpecEntry[] => {
 }
 
 const getReasonTone = (reason: string): string => {
-  if (reason.includes('Penalty')) return 'penalty'
+  if (reason.includes("Expert's Note")) return 'penalty'
   if (reason.includes('SVD')) return 'svd'
   if (reason.includes('Name')) return 'name'
   return 'default'
@@ -315,7 +315,7 @@ function App(): JSX.Element {
             <div className="result-grid">
               {sneakers.map((sneaker, index) => {
                 const isFeatured = index === 0
-                const hasPenalty = sneaker.match_reasons.some(reason => reason.includes('Penalty'))
+                const hasPenalty = sneaker.match_reasons.some(reason => reason.includes("Expert's Note"))
                 const specEntries = buildSpecEntries(sneaker).slice(0, isFeatured ? 4 : 2)
                 const reasonEntries = sneaker.match_reasons.slice(0, isFeatured ? 3 : 2)
                 const evidenceText = truncateText(sneaker.review_evidence, isFeatured ? 220 : 110)
@@ -388,7 +388,7 @@ function App(): JSX.Element {
 
                       {hasPenalty && sneaker.expert_penalty_detail && (
                         <details className="penalty-detail">
-                          <summary>See penalty detail</summary>
+                          <summary>See expert's note</summary>
                           <p className="penalty-detail-text">{sneaker.expert_penalty_detail}</p>
                         </details>
                       )}
