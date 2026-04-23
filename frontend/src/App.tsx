@@ -15,8 +15,6 @@ const VERSION_LABEL = 'Version 5.0'
 const DEFAULT_USE_CASE =
   "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style."
 const SEARCH_ERROR_MESSAGE = 'Unable to load sneaker matches right now. Try the search again in a moment.'
-const INTRO_SESSION_KEY = 'sneakpeek:intro-seen'
-const INTRO_DURATION_MS = 2350
 
 interface SpecEntry {
   label: string
@@ -142,32 +140,6 @@ const buildLatentAxes = (sneaker: Sneaker): LatentAxis[] => {
   return [...termAxes, ...padding].slice(0, 6)
 }
 
-const shouldPlayIntro = (): boolean => {
-  if (typeof window === 'undefined') return false
-
-  if (
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  ) {
-    return false
-  }
-
-  try {
-    return window.sessionStorage.getItem(INTRO_SESSION_KEY) !== 'true'
-  } catch (error) {
-    console.warn('Unable to read SneakPeek intro preference.', error)
-    return false
-  }
-}
-
-const markIntroSeen = (): void => {
-  try {
-    window.sessionStorage.setItem(INTRO_SESSION_KEY, 'true')
-  } catch (error) {
-    console.warn('Unable to store SneakPeek intro preference.', error)
-  }
-}
-
 function ShoeVisual({
   imageUrl,
   shoeName,
@@ -201,37 +173,6 @@ function ShoeVisual({
         setHasImageError(true)
       }}
     />
-  )
-}
-
-function IntroAnimation({ onSkip }: { onSkip: () => void }): JSX.Element {
-  return (
-    <div className="intro-overlay" aria-label="SneakPeek intro animation">
-      <button className="intro-skip" type="button" onClick={onSkip}>
-        Skip
-      </button>
-
-      <div className="intro-stage" aria-hidden="true">
-        <p className="intro-brand">SneakPeek</p>
-        <div className="intro-camera">
-          <div className="intro-shoebox">
-            <div className="intro-glow-core" />
-            <div className="intro-box-lid">
-              <span className="intro-lid-top" />
-              <span className="intro-lid-front" />
-            </div>
-            <div className="intro-box-base">
-              <span className="intro-box-front" />
-              <span className="intro-box-left" />
-              <span className="intro-box-right" />
-              <span className="intro-box-bottom" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="intro-flash" aria-hidden="true" />
-    </div>
   )
 }
 
@@ -325,7 +266,6 @@ function App(): JSX.Element {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [llmExplanations, setLlmExplanations] = useState<Record<string, string>>({})
   const [llmLoading, setLlmLoading] = useState<Record<string, boolean>>({})
-  const [showIntro, setShowIntro] = useState<boolean>(() => shouldPlayIntro())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -397,17 +337,6 @@ function App(): JSX.Element {
     }
   }, [useLlm])
 
-  useEffect(() => {
-    if (!showIntro) return
-
-    const introTimer = window.setTimeout(() => {
-      markIntroSeen()
-      setShowIntro(false)
-    }, INTRO_DURATION_MS)
-
-    return () => window.clearTimeout(introTimer)
-  }, [showIntro])
-
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
     void runSearch(category, category, useCase)
@@ -455,11 +384,6 @@ function App(): JSX.Element {
     }
   }
 
-  const handleIntroSkip = (): void => {
-    markIntroSeen()
-    setShowIntro(false)
-  }
-
   const topPick = sneakers[0]
   const topPickSpecs = topPick ? buildSpecEntries(topPick).slice(0, 4) : []
   const shortUseCase = truncateText(useCase.trim(), 108)
@@ -480,7 +404,6 @@ function App(): JSX.Element {
           <p className="loading-copy">Loading review-backed sneaker intelligence...</p>
           <div className="loading-dash" aria-hidden="true" />
         </div>
-        {showIntro && <IntroAnimation onSkip={handleIntroSkip} />}
       </div>
     )
   }
@@ -727,7 +650,6 @@ function App(): JSX.Element {
         </section>
 
       </main>
-      {showIntro && <IntroAnimation onSkip={handleIntroSkip} />}
     </div>
   )
 }
