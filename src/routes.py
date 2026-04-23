@@ -103,6 +103,6 @@ def register_routes(app):
         return jsonify(payload)
 
     if USE_LLM:
-        from llm_routes import register_chat_route
+        from llm_routes import register_explain_route
 
-        register_chat_route(app, search_shoes)
+        register_explain_route(app)

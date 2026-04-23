@@ -102,12 +102,12 @@ FL_SVD_WEIGHT = 0.25  # blend weight: final = (1-w)*tfidf + w*svd
 FL_SVD_MIN_REVIEWS = 15
 
 BBALL_REVIEWS_PATH = "data/basketball_reviews_cleaned.csv"
-BBALL_SVD_K = 20
+BBALL_SVD_K = 15        # smaller shoe set; fewer dimensions needed
 BBALL_SVD_WEIGHT = 0.25
 BBALL_SVD_MIN_REVIEWS = 3
 
 RUNNING_REVIEWS_PATH = "data/running_reviews_cleaned.csv"
-RUNNING_SVD_K = 20
+RUNNING_SVD_K = 25      # large diverse dataset benefits from more dimensions
 RUNNING_SVD_WEIGHT = 0.25
 RUNNING_SVD_MIN_REVIEWS = 3
 NEG_PENALTY = 0.5    # β: sim_expert = sim_pos - β * sim_neg, clamped ≥ 0

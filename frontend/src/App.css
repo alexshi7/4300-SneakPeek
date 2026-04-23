@@ -758,6 +758,13 @@ body::after {
   letter-spacing: -0.04em;
 }
 
+.result-score-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .result-score {
   flex-shrink: 0;
   padding: 0.4rem 0.58rem;
@@ -774,6 +781,40 @@ body::after {
   background: var(--forest-soft);
 }
 
+.rag-btn {
+  flex-shrink: 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--terracotta);
+  background: transparent;
+  color: var(--terracotta);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.rag-btn:hover:not(:disabled) {
+  background: var(--terracotta);
+  color: #fff;
+}
+
+.rag-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rag-explanation {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border-left: 2px solid var(--terracotta);
+  background: rgba(201, 101, 62, 0.06);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
 .result-signature,
 .result-copy,
 .mini-review,
@@ -785,7 +826,7 @@ body::after {
 
 .result-card-visual {
   position: relative;
-  height: 6.4rem;
+  height: 10rem;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(27, 21, 18, 0.18), rgba(27, 21, 18, 0.42)),
@@ -798,11 +839,11 @@ body::after {
 
 .result-card-image {
   width: 100%;
-  height: 6.4rem;
+  height: 10rem;
   object-fit: contain;
   object-position: center;
-  padding: 0.45rem;
-  background: rgba(255, 255, 255, 0.78);
+  padding: 0.6rem 1rem;
+  background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--line);
 }
 

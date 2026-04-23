@@ -8,7 +8,6 @@ import {
 } from 'react'
 import './App.css'
 import SearchIcon from './assets/mag.png'
-import Chat from './Chat'
 import { SearchResponse, Sneaker } from './types'
 
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
@@ -97,6 +96,12 @@ const formatAxisLabel = (value: string): string =>
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
 
+const CATEGORY_FALLBACK_AXES: Record<string, string[]> = {
+  basketball: ['Traction', 'Cushion', 'Support', 'Lockdown', 'Weight', 'Court Feel'],
+  running:    ['Cushion', 'Energy', 'Breathability', 'Stability', 'Pace', 'Distance'],
+  lifestyle:  ['Style', 'Comfort', 'Fit', 'Materials', 'Versatility', 'Look'],
+}
+
 const buildLatentAxes = (sneaker: Sneaker): LatentAxis[] => {
   const numericSignals = Object.entries(sneaker.review_signals)
     .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
@@ -114,15 +119,27 @@ const buildLatentAxes = (sneaker: Sneaker): LatentAxis[] => {
   const terms = sneaker.top_terms.slice(0, 6)
   const matchWeight = clamp(sneaker.match_score / 100, 0.2, 1)
 
-  return terms.map((term, index) => {
+  const termAxes = terms.map((term, index) => {
     const rankWeight = 1 - index / Math.max(terms.length, 1)
     const wave = 0.08 * Math.sin((index + 1) * 1.7 + sneaker.shoe_name.length)
-
     return {
       label: formatAxisLabel(term),
       value: clamp(matchWeight * 0.62 + rankWeight * 0.3 + wave, 0.16, 1),
     }
   })
+
+  // Pad with category-specific fallback labels so we always reach 6 axes
+  const fallbacks = CATEGORY_FALLBACK_AXES[sneaker.category] ?? CATEGORY_FALLBACK_AXES['lifestyle']
+  const existingLabels = new Set(termAxes.map(a => a.label.toLowerCase()))
+  const padding = fallbacks
+    .filter(label => !existingLabels.has(label.toLowerCase()))
+    .slice(0, Math.max(0, 6 - termAxes.length))
+    .map((label, index) => ({
+      label,
+      value: clamp(0.22 + 0.06 * Math.sin(index * 2.1 + sneaker.shoe_name.length), 0.16, 0.45),
+    }))
+
+  return [...termAxes, ...padding].slice(0, 6)
 }
 
 const shouldPlayIntro = (): boolean => {
@@ -245,66 +262,55 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
     .join(' ')
 
   return (
-    <details className="svd-profile-shell">
-      <summary className="svd-summary">
-        <span className="svd-summary-title">SVD profile</span>
-        <span className="svd-summary-terms">
-          {axes.slice(0, 3).map(axis => (
-            <span key={axis.label}>{axis.label}</span>
-          ))}
-        </span>
-      </summary>
+    <figure className={`svd-profile ${featured ? 'featured-profile' : ''}`}>
+      <figcaption>
+        <span>SVD latent profile</span>
+        <strong>{featured ? sneaker.shoe_name : 'Match shape'}</strong>
+      </figcaption>
 
-        <figure className={`svd-profile ${featured ? 'featured-profile' : ''}`}>
-          <figcaption>
-            <span>SVD latent profile</span>
-            <strong>{featured ? sneaker.shoe_name : 'Match shape'}</strong>
-          </figcaption>
+      <svg className="svd-radar" viewBox="0 0 216 216" role="img" aria-labelledby={`${sneaker.id}-svd-title`}>
+        <title id={`${sneaker.id}-svd-title`}>SVD latent profile for {sneaker.shoe_name}</title>
+        {levels.map(level => (
+          <polygon key={level} className="svd-grid-ring" points={pointsFor(level)} />
+        ))}
 
-          <svg className="svd-radar" viewBox="0 0 216 216" role="img" aria-labelledby={`${sneaker.id}-svd-title`}>
-            <title id={`${sneaker.id}-svd-title`}>SVD latent profile for {sneaker.shoe_name}</title>
-            {levels.map(level => (
-              <polygon key={level} className="svd-grid-ring" points={pointsFor(level)} />
-            ))}
+        {axes.map((axis, index) => {
+          const angle = -Math.PI / 2 + (2 * Math.PI * index) / axes.length
+          const x = center + Math.cos(angle) * radius
+          const y = center + Math.sin(angle) * radius
+          const labelX = center + Math.cos(angle) * labelRadius
+          const labelY = center + Math.sin(angle) * labelRadius
+          const anchor = Math.abs(labelX - center) < 8 ? 'middle' : labelX > center ? 'start' : 'end'
 
-            {axes.map((axis, index) => {
-              const angle = -Math.PI / 2 + (2 * Math.PI * index) / axes.length
-              const x = center + Math.cos(angle) * radius
-              const y = center + Math.sin(angle) * radius
-              const labelX = center + Math.cos(angle) * labelRadius
-              const labelY = center + Math.sin(angle) * labelRadius
-              const anchor = Math.abs(labelX - center) < 8 ? 'middle' : labelX > center ? 'start' : 'end'
+          return (
+            <g key={`${axis.label}-${index}`}>
+              <line className="svd-axis-line" x1={center} y1={center} x2={x} y2={y} />
+              <text className="svd-axis-label" x={labelX} y={labelY} textAnchor={anchor} dominantBaseline="middle">
+                {truncateText(axis.label, featured ? 14 : 11)}
+              </text>
+            </g>
+          )
+        })}
 
-              return (
-                <g key={`${axis.label}-${index}`}>
-                  <line className="svd-axis-line" x1={center} y1={center} x2={x} y2={y} />
-                  <text className="svd-axis-label" x={labelX} y={labelY} textAnchor={anchor} dominantBaseline="middle">
-                    {truncateText(axis.label, featured ? 14 : 11)}
-                  </text>
-                </g>
-              )
-            })}
+        <polygon className="svd-profile-area" points={profilePoints} />
+        <polyline className="svd-profile-line" points={`${profilePoints} ${profilePoints.split(' ')[0]}`} />
 
-            <polygon className="svd-profile-area" points={profilePoints} />
-            <polyline className="svd-profile-line" points={`${profilePoints} ${profilePoints.split(' ')[0]}`} />
-
-            {axes.map((axis, index) => {
-              const angle = -Math.PI / 2 + (2 * Math.PI * index) / axes.length
-              const x = center + Math.cos(angle) * radius * axis.value
-              const y = center + Math.sin(angle) * radius * axis.value
-              return (
-                <circle
-                  key={`${axis.label}-point`}
-                  className="svd-profile-point"
-                  cx={x}
-                  cy={y}
-                  r={featured ? 4 : 3.4}
-                />
-              )
-            })}
-          </svg>
-        </figure>
-    </details>
+        {axes.map((axis, index) => {
+          const angle = -Math.PI / 2 + (2 * Math.PI * index) / axes.length
+          const x = center + Math.cos(angle) * radius * axis.value
+          const y = center + Math.sin(angle) * radius * axis.value
+          return (
+            <circle
+              key={`${axis.label}-point`}
+              className="svd-profile-point"
+              cx={x}
+              cy={y}
+              r={featured ? 4 : 3.4}
+            />
+          )
+        })}
+      </svg>
+    </figure>
   )
 }
 
@@ -317,7 +323,8 @@ function App(): JSX.Element {
   const [requestedAttributes, setRequestedAttributes] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [chatOpen, setChatOpen] = useState<boolean>(false)
+  const [llmExplanations, setLlmExplanations] = useState<Record<string, string>>({})
+  const [llmLoading, setLlmLoading] = useState<Record<string, boolean>>({})
   const [showIntro, setShowIntro] = useState<boolean>(() => shouldPlayIntro())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -409,6 +416,43 @@ function App(): JSX.Element {
   const handleCategorySelect = (nextCategory: string): void => {
     setCategory(nextCategory)
     void runSearch(nextCategory, nextCategory, useCase)
+  }
+
+  const explainShoe = async (shoe: Sneaker): Promise<void> => {
+    const id = shoe.id
+    if (llmLoading[id] || llmExplanations[id]) return
+    setLlmLoading(prev => ({ ...prev, [id]: true }))
+    setLlmExplanations(prev => ({ ...prev, [id]: '' }))
+
+    try {
+      const response = await fetch('/api/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: useCase, shoe }),
+      })
+      if (!response.ok || !response.body) throw new Error('Explain request failed')
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        for (const line of decoder.decode(value).split('\n')) {
+          if (line.startsWith('data: ')) {
+            try {
+              const chunk = JSON.parse(line.slice(6)) as { content?: string }
+              if (chunk.content) {
+                setLlmExplanations(prev => ({ ...prev, [id]: (prev[id] ?? '') + chunk.content }))
+              }
+            } catch { /* ignore malformed chunks */ }
+          }
+        }
+      }
+    } catch {
+      setLlmExplanations(prev => ({ ...prev, [id]: 'Unable to generate explanation. Try again.' }))
+    } finally {
+      setLlmLoading(prev => ({ ...prev, [id]: false }))
+    }
   }
 
   const handleIntroSkip = (): void => {
@@ -570,7 +614,9 @@ function App(): JSX.Element {
                 const isFeatured = index === 0
                 const hasPenalty = sneaker.match_reasons.some(reason => reason.includes("Expert's Note"))
                 const specEntries = buildSpecEntries(sneaker).slice(0, isFeatured ? 4 : 2)
-                const reasonEntries = sneaker.match_reasons.slice(0, isFeatured ? 3 : 2)
+                const reasonEntries = sneaker.match_reasons
+                  .filter(r => !r.includes('SVD'))
+                  .slice(0, isFeatured ? 3 : 2)
                 const evidenceText = truncateText(sneaker.review_evidence, isFeatured ? 220 : 110)
                 const reviewSnippet = truncateText(
                   sneaker.sample_reviews[0] || 'No sample review available.',
@@ -588,9 +634,20 @@ function App(): JSX.Element {
                           <p className="result-category">{sneaker.category}</p>
                           <h3>{sneaker.shoe_name}</h3>
                         </div>
-                        <span className={`result-score ${isFeatured ? 'top-score' : ''}`}>
-                          {isFeatured ? 'Top pick' : `${sneaker.match_score}% match`}
-                        </span>
+                        <div className="result-score-row">
+                          <span className={`result-score ${isFeatured ? 'top-score' : ''}`}>
+                            {isFeatured ? 'Top pick' : `${sneaker.match_score}% match`}
+                          </span>
+                          {useLlm && (
+                            <button
+                              className="rag-btn"
+                              disabled={llmLoading[sneaker.id]}
+                              onClick={() => void explainShoe(sneaker)}
+                            >
+                              {llmLoading[sneaker.id] ? '...' : 'RAG/LLM'}
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {sneaker.signature_player && (
@@ -610,6 +667,10 @@ function App(): JSX.Element {
                             </li>
                           ))}
                         </ul>
+                      )}
+
+                      {llmExplanations[sneaker.id] && (
+                        <p className="rag-explanation">{llmExplanations[sneaker.id]}</p>
                       )}
                     </div>
 
@@ -665,28 +726,6 @@ function App(): JSX.Element {
           )}
         </section>
 
-        {useLlm && (
-          <div className="chat-floating">
-            <button
-              className="chat-toggle-btn"
-              onClick={() => setChatOpen(o => !o)}
-              aria-label={chatOpen ? 'Close AI chat' : 'Open AI chat'}
-            >
-              {chatOpen ? 'Close' : 'Ask AI'}
-            </button>
-            {chatOpen && (
-              <Chat
-                sneakers={sneakers} 
-                onSearchTerm={(term: string) => {
-                  const refinedTerm = term.trim()
-                  if (!refinedTerm) return
-                  setUseCase(refinedTerm)
-                  void runSearch(category, category, refinedTerm)
-                }}
-              />
-            )}
-          </div>
-        )}
       </main>
       {showIntro && <IntroAnimation onSkip={handleIntroSkip} />}
     </div>
