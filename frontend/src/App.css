@@ -811,6 +811,54 @@ body::after {
   line-height: 1.6;
 }
 
+.rag-summary-panel {
+  margin: 1.5rem 0;
+  padding: 1.1rem 1.3rem;
+  border: 2px solid #1a1714;
+  border-left: 5px solid var(--theme-accent);
+  background: #f5ede0;
+  box-shadow: 4px 4px 0 0 #1a1714;
+}
+
+.rag-summary-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.rag-summary-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-accent);
+}
+
+.rag-summary-ir-query {
+  font-size: 0.7rem;
+  color: rgba(24, 18, 14, 0.5);
+}
+
+.rag-summary-ir-query em {
+  font-style: normal;
+  color: rgba(24, 18, 14, 0.72);
+}
+
+.rag-summary-text {
+  margin: 0;
+  font-size: 0.93rem;
+  line-height: 1.7;
+  color: #18120e;
+  white-space: pre-wrap;
+}
+
+.rag-summary-thinking {
+  color: rgba(24, 18, 14, 0.45);
+  font-style: italic;
+}
+
 .result-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -1148,6 +1196,27 @@ body::after {
   fill: var(--theme-accent);
   stroke: #f8fffd;
   stroke-width: 1.6;
+  cursor: crosshair;
+}
+
+.svd-tooltip-bg {
+  fill: #1a1714;
+  opacity: 0.92;
+}
+
+.svd-tooltip-label {
+  fill: rgba(255, 248, 239, 0.72);
+  font-size: 0.48rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.svd-tooltip-value {
+  fill: var(--theme-accent);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .featured-profile {

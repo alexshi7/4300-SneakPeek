@@ -90,7 +90,17 @@ def register_routes(app):
         category = request.args.get("category", "")
         use_case = request.args.get("use_case", "")
         limit = min(int(request.args.get("limit", 12)), 24)
-        payload = search_shoes(query=query, category=category, use_case=use_case, limit=limit)
+
+        ir_query = use_case
+        if USE_LLM and use_case:
+            import os
+            api_key = os.getenv("SPARK_API_KEY")
+            if api_key:
+                from llm_routes import expand_query
+                ir_query = expand_query(use_case, category, api_key)
+
+        payload = search_shoes(query=query, category=category, use_case=ir_query, limit=limit)
+        payload["ir_query"] = ir_query
 
         urls = [item.get("footlocker_url", "") for item in payload.get("results", [])]
         if urls:
@@ -103,6 +113,7 @@ def register_routes(app):
         return jsonify(payload)
 
     if USE_LLM:
-        from llm_routes import register_explain_route
+        from llm_routes import register_explain_route, register_rag_summary_route
 
         register_explain_route(app)
+        register_rag_summary_route(app)

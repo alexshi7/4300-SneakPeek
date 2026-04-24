@@ -27,6 +27,7 @@ export interface Sneaker {
 
 export interface SearchResponse {
   results: Sneaker[]
+  ir_query: string
   applied_filters: {
     query: string
     category: string

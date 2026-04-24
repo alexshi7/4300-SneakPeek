@@ -187,7 +187,10 @@ function ShoeVisual({
   )
 }
 
+interface RadarTooltip { label: string; value: number; x: number; y: number }
+
 function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: boolean }): JSX.Element | null {
+  const [tooltip, setTooltip] = useState<RadarTooltip | null>(null)
   const axes = buildLatentAxes(sneaker)
   if (axes.length < 3) return null
 
@@ -212,6 +215,11 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
       return `${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
+
+  const TIP_W = 62
+  const TIP_H = 26
+  const tipX = clamp(tooltip?.x ?? 0, TIP_W / 2 + 2, 216 - TIP_W / 2 - 2)
+  const tipY = (tooltip?.y ?? 0) < 40 ? (tooltip?.y ?? 0) + 14 : (tooltip?.y ?? 0) - TIP_H - 6
 
   return (
     <figure className={`svd-profile ${featured ? 'featured-profile' : ''}`}>
@@ -257,10 +265,29 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
               className="svd-profile-point"
               cx={x}
               cy={y}
-              r={featured ? 4 : 3.4}
+              r={featured ? 5 : 4.5}
+              onMouseEnter={() => setTooltip({ label: axis.label, value: axis.value, x, y })}
+              onMouseLeave={() => setTooltip(null)}
             />
           )
         })}
+
+        {tooltip && (
+          <g className="svd-tooltip-group" style={{ pointerEvents: 'none' }}>
+            <rect
+              x={tipX - TIP_W / 2} y={tipY}
+              width={TIP_W} height={TIP_H}
+              rx={3} ry={3}
+              className="svd-tooltip-bg"
+            />
+            <text x={tipX} y={tipY + 10} textAnchor="middle" className="svd-tooltip-label">
+              {truncateText(tooltip.label, 10)}
+            </text>
+            <text x={tipX} y={tipY + 21} textAnchor="middle" className="svd-tooltip-value">
+              {Math.round(tooltip.value * 100)}%
+            </text>
+          </g>
+        )}
       </svg>
     </figure>
   )
@@ -277,6 +304,9 @@ function App(): JSX.Element {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [llmExplanations, setLlmExplanations] = useState<Record<string, string>>({})
   const [llmLoading, setLlmLoading] = useState<Record<string, boolean>>({})
+  const [irQuery, setIrQuery] = useState<string>('')
+  const [ragSummary, setRagSummary] = useState<string>('')
+  const [ragSummaryLoading, setRagSummaryLoading] = useState<boolean>(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -306,6 +336,42 @@ function App(): JSX.Element {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`
   }, [useCase])
 
+  const fetchRagSummary = async (
+    originalQuery: string,
+    expandedIrQuery: string,
+    results: Sneaker[]
+  ): Promise<void> => {
+    if (!results.length) return
+    setRagSummaryLoading(true)
+    setRagSummary('')
+    try {
+      const response = await fetch('/api/rag-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: originalQuery, ir_query: expandedIrQuery, results }),
+      })
+      if (!response.ok || !response.body) throw new Error('RAG summary request failed')
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        for (const line of decoder.decode(value).split('\n')) {
+          if (line.startsWith('data: ')) {
+            try {
+              const chunk = JSON.parse(line.slice(6)) as { content?: string }
+              if (chunk.content) setRagSummary(prev => prev + chunk.content)
+            } catch { /* ignore malformed chunks */ }
+          }
+        }
+      }
+    } catch {
+      setRagSummary('')
+    } finally {
+      setRagSummaryLoading(false)
+    }
+  }
+
   const runSearch = async (
     nextQuery: string = category,
     nextCategory: string = category,
@@ -313,6 +379,8 @@ function App(): JSX.Element {
   ): Promise<void> => {
     setIsSearching(true)
     setErrorMessage(null)
+    setRagSummary('')
+    setIrQuery('')
 
     try {
       const params = new URLSearchParams({
@@ -327,10 +395,15 @@ function App(): JSX.Element {
       }
 
       const data: SearchResponse = await response.json()
+      const expandedIrQuery = data.ir_query || nextUseCase
       startTransition(() => {
         setSneakers(data.results)
         setRequestedAttributes(data.applied_filters.requested_attributes)
+        setIrQuery(expandedIrQuery)
       })
+      if (useLlm && data.results.length) {
+        void fetchRagSummary(nextUseCase, expandedIrQuery, data.results)
+      }
     } catch {
       startTransition(() => {
         setSneakers([])
@@ -455,7 +528,7 @@ function App(): JSX.Element {
             <p className="hero-copy">
               Describe the technology, specifications, support, and style you want. SneakPeek turns real review language into a
               short, evidence-backed list for shoes you might need!{' '}
-              <span className="hero-rag-promo">Queries are screened by LLMResults now have a RAG/LLM feature!</span>
+              <span className="hero-rag-promo">Results now have a RAG/LLM feature!</span>
             </p>
 
             <div className="category-row" role="tablist" aria-label="Sneaker category">
@@ -580,26 +653,41 @@ function App(): JSX.Element {
             <p className="results-note">{resultsNote}</p>
           </div>
 
+          {useLlm && (ragSummary || ragSummaryLoading) && (
+            <div className="rag-summary-panel">
+              <div className="rag-summary-header">
+                <span className="rag-summary-label">RAG/LLM Answer</span>
+                {irQuery && irQuery !== useCase && (
+                  <span className="rag-summary-ir-query">
+                    IR Enhanced query: <em>{irQuery}</em>
+                  </span>
+                )}
+              </div>
+              <p className="rag-summary-text">
+                {ragSummary || <span className="rag-summary-thinking">Synthesizing results…</span>}
+              </p>
+            </div>
+          )}
+
           {sneakers.length > 0 ? (
             <div className="result-grid">
               {sneakers.map((sneaker, index) => {
-                const isFeatured = index === 0
                 const hasPenalty = sneaker.match_reasons.some(reason => reason.includes("Expert's Note"))
-                const specEntries = buildSpecEntries(sneaker).slice(0, isFeatured ? 4 : 2)
+                const specEntries = buildSpecEntries(sneaker).slice(0, 2)
                 const reasonEntries = sneaker.match_reasons
                   .filter(r => !r.includes('SVD'))
-                  .slice(0, isFeatured ? 3 : 2)
-                const evidenceText = truncateText(sneaker.review_evidence, isFeatured ? 220 : 110)
+                  .slice(0, 2)
+                const evidenceText = truncateText(sneaker.review_evidence, 110)
                 const reviewSnippet = truncateText(
                   sneaker.sample_reviews[0] || 'No sample review available.',
-                  isFeatured ? 180 : 110
+                  110
                 )
                 const visualStyle = {
                   '--card-shoe-position': CARD_POSITIONS[index % CARD_POSITIONS.length],
                 } as CSSProperties
 
                 return (
-                  <article key={sneaker.id} className={`result-card ${isFeatured ? 'featured' : ''}`}>
+                  <article key={sneaker.id} className="result-card">
                     <div className="result-card-copy">
                       <div className="result-card-head">
                         <div>
@@ -607,7 +695,7 @@ function App(): JSX.Element {
                           <h3>{sneaker.shoe_name}</h3>
                         </div>
                         <div className="result-score-row">
-                          <span className={`result-score ${isFeatured ? 'top-score' : ''}`}>
+                          <span className="result-score">
                             {`${sneaker.match_score}% match`}
                           </span>
                           {useLlm && (
@@ -631,7 +719,7 @@ function App(): JSX.Element {
                       {sneaker.top_terms.length > 0 && (
                         <div className="ir-terms-row">
                           <span className="ir-terms-label">IR matched</span>
-                          {sneaker.top_terms.slice(0, isFeatured ? 6 : 4).map(term => (
+                          {sneaker.top_terms.slice(0, 4).map(term => (
                             <span key={term} className="ir-term-chip">{term}</span>
                           ))}
                         </div>
@@ -660,13 +748,13 @@ function App(): JSX.Element {
                         imageUrl={sneaker.image_url}
                         shoeName={sneaker.shoe_name}
                         visualStyle={visualStyle}
-                        featured={isFeatured}
+                        featured={false}
                       />
 
-                      <SvdRadarChart sneaker={sneaker} featured={isFeatured} />
+                      <SvdRadarChart sneaker={sneaker} featured={false} />
 
                       {specEntries.length > 0 && (
-                        <dl className={`spec-list ${isFeatured ? '' : 'compact'}`}>
+                        <dl className="spec-list compact">
                           {specEntries.map(entry => (
                             <div key={entry.label}>
                               <dt>{entry.label}</dt>
@@ -676,11 +764,7 @@ function App(): JSX.Element {
                         </dl>
                       )}
 
-                      {isFeatured ? (
-                        <blockquote className="review-quote">"{reviewSnippet}"</blockquote>
-                      ) : (
-                        <p className="mini-review">"{reviewSnippet}"</p>
-                      )}
+                      <p className="mini-review">"{reviewSnippet}"</p>
 
                       {hasPenalty && sneaker.expert_penalty_detail && (
                         <details className="penalty-detail">
