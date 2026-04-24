@@ -395,6 +395,8 @@ function App(): JSX.Element {
   const resultsNote = topPick
     ? `Showing ${sneakers.length} ${category} matches for "${shortUseCase}". ${requestedAttributes.length > 0 ? `Prioritizing ${requestedAttributes.join(', ')}.` : ''}`
     : 'Pick a category and run a search to build the shortlist.'
+  const scannerImage = topPick?.image_url || '/example8.jpg'
+  const scannerLabel = topPick?.shoe_name || 'Sneaker scan preview'
 
   if (useLlm === null) {
     return (
@@ -414,7 +416,10 @@ function App(): JSX.Element {
       <div className="page-glow page-glow-right" aria-hidden="true" />
 
       <header className="hero-shell">
-        <div className="hero-media" aria-hidden="true" />
+        <div className="hero-media" aria-hidden="true">
+          <div className="star-field star-field-near" />
+          <div className="star-field star-field-far" />
+        </div>
 
         <div className="hero-content">
           <div className="hero-copy-column">
@@ -480,6 +485,26 @@ function App(): JSX.Element {
           </div>
 
           <aside className="hero-pick-panel" aria-live="polite">
+            <div className="scanner-stage" aria-label={scannerLabel}>
+              <div className="scanner-orbit orbit-one" aria-hidden="true" />
+              <div className="scanner-orbit orbit-two" aria-hidden="true" />
+              <div className="scanner-orbit orbit-three" aria-hidden="true" />
+
+              <div className="scanner-shoe-shell">
+                <img className="scanner-shoe scanner-shoe-main" src={scannerImage} alt="" />
+                <span className="scanner-beam" aria-hidden="true" />
+              </div>
+
+              <div className="scanner-node node-one" aria-hidden="true" />
+              <div className="scanner-node node-two" aria-hidden="true" />
+              <div className="scanner-node node-three" aria-hidden="true" />
+
+              <div className="scanner-readout" aria-hidden="true">
+                <span>Fit vector</span>
+                <strong>{topPick ? `${topPick.match_score}%` : 'Live'}</strong>
+              </div>
+            </div>
+
             <p className="panel-kicker">{topPick ? 'Current top match' : 'Search preview'}</p>
             {topPick ? (
               <>
@@ -490,13 +515,6 @@ function App(): JSX.Element {
                   </div>
                   <span className="hero-match-score">{topPick.match_score}%</span>
                 </div>
-
-                <ShoeVisual
-                  imageUrl={topPick.image_url}
-                  shoeName={topPick.shoe_name}
-                  visualStyle={{ '--card-shoe-position': CARD_POSITIONS[0] } as CSSProperties}
-                  featured
-                />
 
                 {topPickSpecs.length > 0 && (
                   <dl className="hero-spec-grid">
@@ -513,7 +531,6 @@ function App(): JSX.Element {
               </>
             ) : (
               <div className="hero-pick-empty">
-                <div className="hero-pick-placeholder" aria-hidden="true" />
                 <p>Your best match will appear here after SneakPeek scans the review set.</p>
               </div>
             )}
