@@ -126,10 +126,10 @@ body::after {
 }
 
 .app-shell.theme-lifestyle {
-  --theme-accent: #f2d49b;
-  --theme-accent-2: #ff7b9c;
-  --theme-glow: rgba(242, 212, 155, 0.22);
-  --theme-glow-soft: rgba(255, 123, 156, 0.13);
+  --theme-accent: #ff5fa3;
+  --theme-accent-2: #ff9ecb;
+  --theme-glow: rgba(255, 95, 163, 0.26);
+  --theme-glow-soft: rgba(255, 158, 203, 0.15);
   --theme-panel: rgba(242, 212, 155, 0.1);
   --theme-dark: #17100f;
   --theme-rhythm: 6.4s;
@@ -538,6 +538,14 @@ body::after {
   border-radius: 999px;
   background: var(--theme-accent);
   box-shadow: 0 0 0.7rem var(--theme-glow);
+}
+
+.category-suggestions {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--theme-accent);
+  opacity: 0.85;
 }
 
 .search-panel {
@@ -1124,20 +1132,20 @@ body::after {
 }
 
 .svd-profile-area {
-  fill: rgba(18, 200, 160, 0.22);
+  fill: color-mix(in srgb, var(--theme-accent) 40%, transparent);
   stroke: none;
 }
 
 .svd-profile-line {
   fill: none;
-  stroke: #10b992;
+  stroke: var(--theme-accent);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 4;
 }
 
 .svd-profile-point {
-  fill: #10b992;
+  fill: var(--theme-accent);
   stroke: #f8fffd;
   stroke-width: 1.6;
 }

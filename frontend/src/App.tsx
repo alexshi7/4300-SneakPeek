@@ -13,31 +13,16 @@ import { SearchResponse, Sneaker } from './types'
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle'] as const
 type Category = (typeof CATEGORY_OPTIONS)[number]
 
-const CATEGORY_THEMES: Record<Category, { label: string; signal: string; motion: string; stat: string }> = {
-  basketball: {
-    label: 'Hardwood mode',
-    signal: 'Grip, bounce, impact',
-    motion: 'Court burst',
-    stat: 'Lateral stop scan',
-  },
-  running: {
-    label: 'Pace mode',
-    signal: 'Flow, rebound, distance',
-    motion: 'Forward surge',
-    stat: 'Stride rhythm scan',
-  },
-  lifestyle: {
-    label: 'Street mode',
-    signal: 'Texture, shape, presence',
-    motion: 'Night drift',
-    stat: 'Outfit balance scan',
-  },
-}
 const VERSION_LABEL = 'Version 5.0'
 const CATEGORY_DEFAULTS: Record<Category, string> = {
   basketball: "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style.",
   lifestyle:  'y2k dad shoe that is comfortable',
   running:    'I want a shoe for trail running in the woods',
+}
+const CATEGORY_SUGGESTIONS: Record<Category, string> = {
+  basketball: 'Suggestions: Traction, cushion, containment, ankle support, court grip, …',
+  running:    'Suggestions: Cushion, durability, lightweight, breathability, stability, …',
+  lifestyle:  'Suggestions: Comfort, stylish, casual, versatile, y2k, …',
 }
 const DEFAULT_USE_CASE = CATEGORY_DEFAULTS['basketball']
 const SEARCH_ERROR_MESSAGE = 'Unable to load sneaker matches right now. Try the search again in a moment.'
@@ -425,7 +410,7 @@ function App(): JSX.Element {
     : 'Pick a category and run a search to build the shortlist.'
   const scannerImage = topPick?.image_url || '/example8.jpg'
   const scannerLabel = topPick?.shoe_name || 'Sneaker scan preview'
-  const activeTheme = CATEGORY_THEMES[category]
+
 
   if (useLlm === null) {
     return (
@@ -468,9 +453,9 @@ function App(): JSX.Element {
             <p className="brand-mark">SneakPeek</p>
             <h1 className="hero-title">Find the sneaker that fits how you move.</h1>
             <p className="hero-copy">
-              Describe the ride, court feel, support, and style you want. SneakPeek turns real review language into a
-              short, evidence-backed list.{' '}
-              <span className="hero-rag-promo">Results now have a RAG/LLM feature!</span>
+              Describe the technology, specifications, support, and style you want. SneakPeek turns real review language into a
+              short, evidence-backed list for shoes you might need!{' '}
+              <span className="hero-rag-promo">Queries are screened by LLMResults now have a RAG/LLM feature!</span>
             </p>
 
             <div className="category-row" role="tablist" aria-label="Sneaker category">
@@ -489,11 +474,7 @@ function App(): JSX.Element {
               ))}
             </div>
 
-            <div key={`${category}-vibe`} className="category-vibe" aria-live="polite">
-              <span>{activeTheme.label}</span>
-              <strong>{activeTheme.motion}</strong>
-              <span>{activeTheme.signal}</span>
-            </div>
+            <p className="category-suggestions">{CATEGORY_SUGGESTIONS[category]}</p>
 
             <form className="search-panel" onSubmit={handleSubmit}>
               <label className="query-label" htmlFor="use-case-input">
@@ -554,9 +535,6 @@ function App(): JSX.Element {
                 <strong>{topPick ? `${topPick.match_score}%` : 'Live'}</strong>
               </div>
 
-              <div key={`${category}-scanner-mode`} className="scanner-mode-chip" aria-hidden="true">
-                <span>{activeTheme.stat}</span>
-              </div>
             </div>
 
             <p className="panel-kicker">{topPick ? 'Current top match' : 'Search preview'}</p>
