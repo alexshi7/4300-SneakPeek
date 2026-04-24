@@ -1440,12 +1440,13 @@ def search_shoes(query="", category="", use_case="", limit=12):
     results.sort(key=lambda item: (-item["match_score"], item["shoe_name"]))
     results = results[:limit]
 
-    # Normalize scores so the top result = 100% and others are shown relative to it
-    if results:
-        max_score = results[0]["match_score"]
-        if max_score > 0:
-            for r in results:
-                r["match_score"] = round((r["match_score"] / max_score) * 100, 1)
+    # Saturating power curve (γ=0.4): raw^0.4 × 100, capped at 100.
+    # Generous but honest: raw 0.49→74%, 0.64→83%, 0.81→91%.
+    # Scores above 1.0 (from title boosts) are clamped before the transform.
+    GAMMA = 0.4
+    for r in results:
+        raw = min(1.0, r["match_score"] / 100)
+        r["match_score"] = round(raw ** GAMMA * 100, 1)
 
     return {
         "results": results,

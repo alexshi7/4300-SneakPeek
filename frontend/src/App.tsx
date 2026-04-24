@@ -559,7 +559,7 @@ function App(): JSX.Element {
                         </div>
                         <div className="result-score-row">
                           <span className={`result-score ${isFeatured ? 'top-score' : ''}`}>
-                            {isFeatured ? 'Top pick' : `${sneaker.match_score}% match`}
+                            {`${sneaker.match_score}% match`}
                           </span>
                           {useLlm && (
                             <button
@@ -578,6 +578,15 @@ function App(): JSX.Element {
                       )}
 
                       <p className="result-copy">{evidenceText}</p>
+
+                      {sneaker.top_terms.length > 0 && (
+                        <div className="ir-terms-row">
+                          <span className="ir-terms-label">IR matched</span>
+                          {sneaker.top_terms.slice(0, isFeatured ? 6 : 4).map(term => (
+                            <span key={term} className="ir-term-chip">{term}</span>
+                          ))}
+                        </div>
+                      )}
 
                       {reasonEntries.length > 0 && (
                         <ul className="reason-chip-row">
