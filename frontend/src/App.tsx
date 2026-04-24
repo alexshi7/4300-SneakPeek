@@ -508,6 +508,27 @@ function App(): JSX.Element {
       <div className="page-glow page-glow-left" aria-hidden="true" />
       <div className="page-glow page-glow-right" aria-hidden="true" />
 
+      <div className="info-widget">
+        <button className="info-btn" aria-label="How it works">?</button>
+        <div className="info-popover">
+          <p className="info-popover-heading">How it works</p>
+          <dl className="info-popover-list">
+            <dt>Search</dt>
+            <dd>TF-IDF cosine similarity over 40k+ customer reviews, blended with per-category SVD (latent semantic) scoring.</dd>
+            <dt>Match %</dt>
+            <dd>Saturating curve (raw^0.4) so scores feel honest — no shoe is ever a perfect 100.</dd>
+            <dt>Radar chart</dt>
+            <dd>Shows the shoe's SVD latent profile. Hover dots for dimension scores.</dd>
+            <dt>Search with RAG/LLM</dt>
+            <dd>LLM rewrites your query into IR keywords, runs retrieval, then synthesizes a ranked summary from the top results.</dd>
+            <dt>RAG/LLM on cards</dt>
+            <dd>Explains a single shoe's IR match using its review evidence — no re-retrieval.</dd>
+            <dt>Data</dt>
+            <dd>Specs from RunRepeat. Reviews from Foot Locker and Amazon.</dd>
+          </dl>
+        </div>
+      </div>
+
       <header className="hero-shell">
         <div className="hero-media" aria-hidden="true">
           <div className="star-field star-field-near" />
