@@ -639,6 +639,13 @@ body::after {
   opacity: 0.82;
 }
 
+.search-button-rag {
+  background: #1a1714;
+  color: var(--theme-accent);
+  border: 2px solid var(--theme-accent);
+  font-size: 0.82rem;
+}
+
 .search-note {
   margin: 0;
   max-width: 22rem;

@@ -91,8 +91,9 @@ def register_routes(app):
         use_case = request.args.get("use_case", "")
         limit = min(int(request.args.get("limit", 12)), 24)
 
+        use_rag = request.args.get("use_rag", "false").lower() == "true"
         ir_query = use_case
-        if USE_LLM and use_case:
+        if USE_LLM and use_rag and use_case:
             import os
             api_key = os.getenv("SPARK_API_KEY")
             if api_key:

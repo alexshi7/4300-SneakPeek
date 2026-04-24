@@ -375,7 +375,8 @@ function App(): JSX.Element {
   const runSearch = async (
     nextQuery: string = category,
     nextCategory: string = category,
-    nextUseCase: string = useCase
+    nextUseCase: string = useCase,
+    useRag: boolean = false
   ): Promise<void> => {
     setIsSearching(true)
     setErrorMessage(null)
@@ -387,6 +388,7 @@ function App(): JSX.Element {
         query: nextQuery,
         category: nextCategory,
         use_case: nextUseCase,
+        use_rag: String(useRag),
       })
 
       const response = await fetch(`/api/sneakers?${params.toString()}`)
@@ -401,7 +403,7 @@ function App(): JSX.Element {
         setRequestedAttributes(data.applied_filters.requested_attributes)
         setIrQuery(expandedIrQuery)
       })
-      if (useLlm && data.results.length) {
+      if (useLlm && useRag && data.results.length) {
         void fetchRagSummary(nextUseCase, expandedIrQuery, data.results)
       }
     } catch {
@@ -423,7 +425,11 @@ function App(): JSX.Element {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
-    void runSearch(category, category, useCase)
+    void runSearch(category, category, useCase, false)
+  }
+
+  const handleRagSubmit = (): void => {
+    void runSearch(category, category, useCase, true)
   }
 
   const handleCategorySelect = (nextCategory: Category): void => {
@@ -571,7 +577,7 @@ function App(): JSX.Element {
                   onKeyDown={event => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault()
-                      void runSearch(category, category, useCase)
+                      void runSearch(category, category, useCase, false)
                     }
                   }}
                   rows={3}
@@ -581,8 +587,18 @@ function App(): JSX.Element {
 
               <div className="hero-actions">
                 <button className="search-button" type="submit" disabled={isSearching}>
-                  {isSearching ? 'Scanning Reviews...' : 'Find Matches'}
+                  {isSearching ? 'Scanning…' : 'Find Matches'}
                 </button>
+                {useLlm && (
+                  <button
+                    className="search-button search-button-rag"
+                    type="button"
+                    disabled={isSearching || ragSummaryLoading}
+                    onClick={handleRagSubmit}
+                  >
+                    {ragSummaryLoading ? 'Thinking…' : 'Search with RAG/LLM'}
+                  </button>
+                )}
                 <p className="search-note">{heroNote}</p>
               </div>
             </form>

@@ -546,6 +546,14 @@ def load_catalog():
     return catalog_cache
 
 
+def prewarm_caches():
+    """Load all catalog and SVD caches eagerly. Call at startup in a thread."""
+    load_catalog()
+    _load_fl_svd()
+    _load_bball_svd()
+    _load_running_svd()
+
+
 def _idf_values():
     global idf_cache
     if idf_cache is not None:
