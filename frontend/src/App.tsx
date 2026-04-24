@@ -10,9 +10,31 @@ import './App.css'
 import SearchIcon from './assets/mag.png'
 import { SearchResponse, Sneaker } from './types'
 
-const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
+const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle'] as const
+type Category = (typeof CATEGORY_OPTIONS)[number]
+
+const CATEGORY_THEMES: Record<Category, { label: string; signal: string; motion: string; stat: string }> = {
+  basketball: {
+    label: 'Hardwood mode',
+    signal: 'Grip, bounce, impact',
+    motion: 'Court burst',
+    stat: 'Lateral stop scan',
+  },
+  running: {
+    label: 'Pace mode',
+    signal: 'Flow, rebound, distance',
+    motion: 'Forward surge',
+    stat: 'Stride rhythm scan',
+  },
+  lifestyle: {
+    label: 'Street mode',
+    signal: 'Texture, shape, presence',
+    motion: 'Night drift',
+    stat: 'Outfit balance scan',
+  },
+}
 const VERSION_LABEL = 'Version 5.0'
-const CATEGORY_DEFAULTS: Record<string, string> = {
+const CATEGORY_DEFAULTS: Record<Category, string> = {
   basketball: "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style.",
   lifestyle:  'y2k dad shoe that is comfortable',
   running:    'I want a shoe for trail running in the woods',
@@ -262,7 +284,7 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
   const [catalogSize, setCatalogSize] = useState<number>(0)
-  const [category, setCategory] = useState<string>('basketball')
+  const [category, setCategory] = useState<Category>('basketball')
   const [useCase, setUseCase] = useState<string>(DEFAULT_USE_CASE)
   const [sneakers, setSneakers] = useState<Sneaker[]>([])
   const [requestedAttributes, setRequestedAttributes] = useState<string[]>([])
@@ -346,8 +368,8 @@ function App(): JSX.Element {
     void runSearch(category, category, useCase)
   }
 
-  const handleCategorySelect = (nextCategory: string): void => {
-    const defaultText = CATEGORY_DEFAULTS[nextCategory] ?? ''
+  const handleCategorySelect = (nextCategory: Category): void => {
+    const defaultText = CATEGORY_DEFAULTS[nextCategory]
     setCategory(nextCategory)
     setUseCase(defaultText)
     void runSearch(nextCategory, nextCategory, defaultText)
@@ -403,6 +425,7 @@ function App(): JSX.Element {
     : 'Pick a category and run a search to build the shortlist.'
   const scannerImage = topPick?.image_url || '/example8.jpg'
   const scannerLabel = topPick?.shoe_name || 'Sneaker scan preview'
+  const activeTheme = CATEGORY_THEMES[category]
 
   if (useLlm === null) {
     return (
@@ -417,7 +440,7 @@ function App(): JSX.Element {
   }
 
   return (
-    <div className={`app-shell ${useLlm ? 'llm-mode' : ''}`}>
+    <div className={`app-shell theme-${category} ${useLlm ? 'llm-mode' : ''}`}>
       <div className="page-glow page-glow-left" aria-hidden="true" />
       <div className="page-glow page-glow-right" aria-hidden="true" />
 
@@ -425,6 +448,13 @@ function App(): JSX.Element {
         <div className="hero-media" aria-hidden="true">
           <div className="star-field star-field-near" />
           <div className="star-field star-field-far" />
+          <div key={category} className="category-atmosphere">
+            <span className="theme-line theme-line-one" />
+            <span className="theme-line theme-line-two" />
+            <span className="theme-line theme-line-three" />
+            <span className="theme-pulse theme-pulse-one" />
+            <span className="theme-pulse theme-pulse-two" />
+          </div>
         </div>
 
         <div className="hero-content">
@@ -453,9 +483,16 @@ function App(): JSX.Element {
                   className={`category-chip ${category === option ? 'active' : ''}`}
                   onClick={() => handleCategorySelect(option)}
                 >
-                  {option}
+                  <span className="category-chip-mark" aria-hidden="true" />
+                  <span>{option}</span>
                 </button>
               ))}
+            </div>
+
+            <div key={`${category}-vibe`} className="category-vibe" aria-live="polite">
+              <span>{activeTheme.label}</span>
+              <strong>{activeTheme.motion}</strong>
+              <span>{activeTheme.signal}</span>
             </div>
 
             <form className="search-panel" onSubmit={handleSubmit}>
@@ -516,6 +553,10 @@ function App(): JSX.Element {
                 <span>Fit vector</span>
                 <strong>{topPick ? `${topPick.match_score}%` : 'Live'}</strong>
               </div>
+
+              <div key={`${category}-scanner-mode`} className="scanner-mode-chip" aria-hidden="true">
+                <span>{activeTheme.stat}</span>
+              </div>
             </div>
 
             <p className="panel-kicker">{topPick ? 'Current top match' : 'Search preview'}</p>
@@ -552,7 +593,7 @@ function App(): JSX.Element {
       </header>
 
       <main className="page-content">
-        <section className="results-shell">
+        <section key={category} className="results-shell">
           <div className="results-bar">
             <div className="results-heading">
               <p className="section-kicker">Matches</p>
