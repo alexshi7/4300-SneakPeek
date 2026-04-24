@@ -12,8 +12,12 @@ import { SearchResponse, Sneaker } from './types'
 
 const CATEGORY_OPTIONS = ['basketball', 'running', 'lifestyle']
 const VERSION_LABEL = 'Version 5.0'
-const DEFAULT_USE_CASE =
-  "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style."
+const CATEGORY_DEFAULTS: Record<string, string> = {
+  basketball: "I'm a tall point guard who wants lightweight shoes with good traction, a star-player connection, and strong style.",
+  lifestyle:  'y2k dad shoe that is comfortable',
+  running:    'I want a shoe for trail running in the woods',
+}
+const DEFAULT_USE_CASE = CATEGORY_DEFAULTS['basketball']
 const SEARCH_ERROR_MESSAGE = 'Unable to load sneaker matches right now. Try the search again in a moment.'
 
 interface SpecEntry {
@@ -343,8 +347,10 @@ function App(): JSX.Element {
   }
 
   const handleCategorySelect = (nextCategory: string): void => {
+    const defaultText = CATEGORY_DEFAULTS[nextCategory] ?? ''
     setCategory(nextCategory)
-    void runSearch(nextCategory, nextCategory, useCase)
+    setUseCase(defaultText)
+    void runSearch(nextCategory, nextCategory, defaultText)
   }
 
   const explainShoe = async (shoe: Sneaker): Promise<void> => {
@@ -433,7 +439,8 @@ function App(): JSX.Element {
             <h1 className="hero-title">Find the sneaker that fits how you move.</h1>
             <p className="hero-copy">
               Describe the ride, court feel, support, and style you want. SneakPeek turns real review language into a
-              short, evidence-backed list.
+              short, evidence-backed list.{' '}
+              <span className="hero-rag-promo">Results now have a RAG/LLM feature!</span>
             </p>
 
             <div className="category-row" role="tablist" aria-label="Sneaker category">
@@ -461,9 +468,15 @@ function App(): JSX.Element {
                 <textarea
                   ref={textareaRef}
                   id="use-case-input"
-                  className="use-case-box"
+                  className={`use-case-box${useCase === CATEGORY_DEFAULTS[category] ? ' use-case-default' : ''}`}
                   value={useCase}
                   onChange={event => setUseCase(event.target.value)}
+                  onFocus={() => {
+                    if (useCase === CATEGORY_DEFAULTS[category]) setUseCase('')
+                  }}
+                  onBlur={() => {
+                    if (!useCase.trim()) setUseCase(CATEGORY_DEFAULTS[category] ?? '')
+                  }}
                   onKeyDown={event => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault()

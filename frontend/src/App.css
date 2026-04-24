@@ -403,6 +403,11 @@ body::after {
   animation: heroRise 1s cubic-bezier(0.2, 0.85, 0.22, 1) both;
 }
 
+.hero-rag-promo {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .category-row {
   display: flex;
   flex-wrap: wrap;
@@ -488,6 +493,10 @@ body::after {
 }
 
 .use-case-box::placeholder {
+  color: rgba(24, 18, 14, 0.42);
+}
+
+.use-case-default {
   color: rgba(24, 18, 14, 0.42);
 }
 
