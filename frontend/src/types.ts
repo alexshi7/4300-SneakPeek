@@ -6,6 +6,13 @@ export interface Sneaker {
   review_count: number
   signature_player: string | null
   review_signals: Record<string, number>
+  svd_profile?: Array<{
+    dimension: number
+    label: string
+    query_value: number
+    shoe_value: number
+    contribution: number
+  }>
   top_terms: string[]
   match_reasons: string[]
   expert_penalty_detail?: string

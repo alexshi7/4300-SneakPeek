@@ -34,6 +34,9 @@ interface SpecEntry {
 
 interface LatentAxis {
   label: string
+  dimension?: number
+  queryValue?: number
+  shoeValue?: number
   value: number
 }
 
@@ -112,6 +115,20 @@ const CATEGORY_FALLBACK_AXES: Record<string, string[]> = {
 }
 
 const buildLatentAxes = (sneaker: Sneaker): LatentAxis[] => {
+  if (sneaker.svd_profile && sneaker.svd_profile.length >= 3) {
+    const maxValue = Math.max(
+      ...sneaker.svd_profile.flatMap(axis => [axis.query_value, axis.shoe_value]),
+      0.01
+    )
+    return sneaker.svd_profile.slice(0, 6).map(axis => ({
+      label: formatAxisLabel(axis.label || `Dimension ${axis.dimension}`),
+      dimension: axis.dimension,
+      queryValue: clamp(axis.query_value / maxValue, 0.08, 1),
+      shoeValue: clamp(axis.shoe_value / maxValue, 0, 1),
+      value: clamp(axis.shoe_value / maxValue, 0, 1),
+    }))
+  }
+
   const numericSignals = Object.entries(sneaker.review_signals)
     .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
@@ -187,7 +204,7 @@ function ShoeVisual({
   )
 }
 
-interface RadarTooltip { label: string; value: number; x: number; y: number }
+interface RadarTooltip { label: string; dimension?: number; queryValue?: number; shoeValue?: number; value: number; x: number; y: number }
 
 function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: boolean }): JSX.Element | null {
   const [tooltip, setTooltip] = useState<RadarTooltip | null>(null)
@@ -215,8 +232,18 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
       return `${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
+  const queryPoints = axes
+    .map((axis, index) => {
+      const angle = -Math.PI / 2 + (2 * Math.PI * index) / axes.length
+      const value = axis.queryValue ?? axis.value
+      const x = center + Math.cos(angle) * radius * value
+      const y = center + Math.sin(angle) * radius * value
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  const hasQueryOverlay = axes.some(axis => axis.queryValue !== undefined)
 
-  const TIP_W = 62
+  const TIP_W = hasQueryOverlay ? 88 : 62
   const TIP_H = 26
   const tipX = clamp(tooltip?.x ?? 0, TIP_W / 2 + 2, 216 - TIP_W / 2 - 2)
   const tipY = (tooltip?.y ?? 0) < 40 ? (tooltip?.y ?? 0) + 14 : (tooltip?.y ?? 0) - TIP_H - 6
@@ -224,12 +251,12 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
   return (
     <figure className={`svd-profile ${featured ? 'featured-profile' : ''}`}>
       <figcaption>
-        <span>SVD latent profile</span>
-        <strong>{featured ? sneaker.shoe_name : 'Match shape'}</strong>
+        <span>SVD query match</span>
+        <strong>{featured ? sneaker.shoe_name : 'Same axes'}</strong>
       </figcaption>
 
       <svg className="svd-radar" viewBox="0 0 216 216" role="img" aria-labelledby={`${sneaker.id}-svd-title`}>
-        <title id={`${sneaker.id}-svd-title`}>SVD latent profile for {sneaker.shoe_name}</title>
+        <title id={`${sneaker.id}-svd-title`}>SVD query and shoe latent profile for {sneaker.shoe_name}</title>
         {levels.map(level => (
           <polygon key={level} className="svd-grid-ring" points={pointsFor(level)} />
         ))}
@@ -254,6 +281,9 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
 
         <polygon className="svd-profile-area" points={profilePoints} />
         <polyline className="svd-profile-line" points={`${profilePoints} ${profilePoints.split(' ')[0]}`} />
+        {hasQueryOverlay && (
+          <polyline className="svd-query-line" points={`${queryPoints} ${queryPoints.split(' ')[0]}`} />
+        )}
 
         {axes.map((axis, index) => {
           const angle = -Math.PI / 2 + (2 * Math.PI * index) / axes.length
@@ -266,7 +296,15 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
               cx={x}
               cy={y}
               r={featured ? 5 : 4.5}
-              onMouseEnter={() => setTooltip({ label: axis.label, value: axis.value, x, y })}
+              onMouseEnter={() => setTooltip({
+                label: axis.label,
+                dimension: axis.dimension,
+                queryValue: axis.queryValue,
+                shoeValue: axis.shoeValue,
+                value: axis.value,
+                x,
+                y,
+              })}
               onMouseLeave={() => setTooltip(null)}
             />
           )
@@ -281,14 +319,22 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
               className="svd-tooltip-bg"
             />
             <text x={tipX} y={tipY + 10} textAnchor="middle" className="svd-tooltip-label">
-              {truncateText(tooltip.label, 10)}
+              {tooltip.dimension ? `Dim ${tooltip.dimension}` : truncateText(tooltip.label, 10)}
             </text>
             <text x={tipX} y={tipY + 21} textAnchor="middle" className="svd-tooltip-value">
-              {Math.round(tooltip.value * 100)}%
+              {tooltip.queryValue !== undefined
+                ? `Q ${Math.round(tooltip.queryValue * 100)} / S ${Math.round((tooltip.shoeValue ?? 0) * 100)}`
+                : `${Math.round(tooltip.value * 100)}%`}
             </text>
           </g>
         )}
       </svg>
+      {hasQueryOverlay && (
+        <div className="svd-legend" aria-hidden="true">
+          <span><i className="svd-legend-query" />Query</span>
+          <span><i className="svd-legend-shoe" />Shoe</span>
+        </div>
+      )}
     </figure>
   )
 }
@@ -366,7 +412,8 @@ function App(): JSX.Element {
         }
       }
     } catch {
-      setRagSummary('')
+      const fallbackNames = results.slice(0, 4).map((shoe, index) => `${index + 1}. ${shoe.shoe_name}`).join(' ')
+      setRagSummary(`RAG summary is temporarily unavailable, but retrieval completed. Ranked IR top 4: ${fallbackNames}`)
     } finally {
       setRagSummaryLoading(false)
     }
@@ -703,6 +750,16 @@ function App(): JSX.Element {
               <p className="rag-summary-text">
                 {ragSummary || <span className="rag-summary-thinking">Synthesizing results…</span>}
               </p>
+              {sneakers.length > 0 && (
+                <ol className="rag-top-four">
+                  {sneakers.slice(0, 4).map(sneaker => (
+                    <li key={sneaker.id}>
+                      <span>{sneaker.shoe_name}</span>
+                      <strong>{sneaker.match_score}%</strong>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           )}
 

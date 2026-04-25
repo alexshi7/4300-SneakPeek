@@ -830,6 +830,96 @@ def _review_evidence(query_vector, shoe):
     return "Matches based on general review text similarity."
 
 
+def _svd_similarities(model, review_count_key):
+    """
+    Project query text into a category SVD model and return per-shoe scores plus
+    a stable query-ordered latent profile for the UI.
+    """
+    def _for_query(query_text):
+        if model is None:
+            return {}
+
+        vocab_idx = model["vocab_idx"]
+        idf = model["idf"]
+        n_terms = len(vocab_idx)
+
+        counts = Counter(_tokenize(query_text))
+        q = np.zeros(n_terms)
+        for tok, cnt in counts.items():
+            idx = vocab_idx.get(tok)
+            if idx is not None:
+                q[idx] = cnt * idf[idx]
+
+        q_norm = np.linalg.norm(q)
+        if q_norm == 0:
+            return {}
+        q = q / q_norm
+
+        q_svd = (q @ model["Vt_k"].T) / (model["s_k"] + 1e-9)
+        q_svd_norm = np.linalg.norm(q_svd)
+        if q_svd_norm == 0:
+            return {}
+        q_svd = q_svd / q_svd_norm
+
+        shoe_vecs = model["shoe_vecs"]
+        sims = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
+        contributions = shoe_vecs * q_svd
+
+        idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
+        query_dims = [int(dim) for dim in np.argsort(np.abs(q_svd))[::-1][:6]]
+
+        def _concept_words(dim, sign_positive):
+            row = model["Vt_k"][dim]
+            top_idx = np.argsort(row)[::-1][:3] if sign_positive else np.argsort(row)[:3]
+            return [idx_to_vocab.get(j, "") for j in top_idx if idx_to_vocab.get(j, "")]
+
+        def _dim_label(dim, sign_positive):
+            words = ", ".join(_concept_words(dim, sign_positive))
+            activation_pct = min(100, abs(float(q_svd[dim])) * 100)
+            return f"{activation_pct:.0f}% query concept match ({words})"
+
+        public_count_key = review_count_key.replace("_counts", "_count")
+        results = {}
+        for i, name in enumerate(model["shoes"]):
+            c_row = contributions[i]
+            shoe_vec = shoe_vecs[i]
+
+            pos_dim = int(np.argmax(c_row))
+            pos_label = _dim_label(pos_dim, q_svd[pos_dim] >= 0)
+
+            neg_dim = int(np.argmin(c_row))
+            neg_contrib = float(c_row[neg_dim])
+
+            reason = f"SVD {pos_label}"
+            if neg_contrib < -0.01:
+                neg_label = _dim_label(neg_dim, q_svd[neg_dim] >= 0)
+                reason += f" / counter: {neg_label}"
+
+            profile = []
+            for dim in query_dims:
+                sign = 1.0 if q_svd[dim] >= 0 else -1.0
+                profile.append(
+                    {
+                        "dimension": dim + 1,
+                        "label": ", ".join(_concept_words(dim, sign > 0)),
+                        "query_value": round(abs(float(q_svd[dim])), 4),
+                        "shoe_value": round(max(0.0, float(sign * shoe_vec[dim])), 4),
+                        "contribution": round(max(0.0, float(c_row[dim])), 4),
+                    }
+                )
+
+            results[name] = {
+                "score": float(sims[i]),
+                "reason": reason,
+                "svd_profile": profile,
+                public_count_key: int(model[review_count_key].get(name, 0)),
+            }
+
+        return results
+
+    return _for_query
+
+
 def _load_fl_svd():
     """
     Build an LSA model from Foot Locker reviews for lifestyle/sneakers shoes.
@@ -926,73 +1016,7 @@ def _fl_svd_similarities(query_text):
     cosine similarities to each shoe. Returns {} if the model is unavailable
     or the query has no overlap with the FL vocabulary.
     """
-    model = _load_fl_svd()
-    if model is None:
-        return {}
-
-    vocab_idx = model["vocab_idx"]
-    idf = model["idf"]
-    n_terms = len(vocab_idx)
-
-    counts = Counter(_tokenize(query_text))
-    q = np.zeros(n_terms)
-    for tok, cnt in counts.items():
-        idx = vocab_idx.get(tok)
-        if idx is not None:
-            q[idx] = cnt * idf[idx]
-
-    q_norm = np.linalg.norm(q)
-    if q_norm == 0:
-        return {}
-    q = q / q_norm
-
-    # Fold query into SVD space: q_svd = q @ Vt_k.T / s_k
-    q_svd = (q @ model["Vt_k"].T) / (model["s_k"] + 1e-9)
-    q_svd_norm = np.linalg.norm(q_svd)
-    if q_svd_norm == 0:
-        return {}
-    q_svd = q_svd / q_svd_norm
-
-    # Calculate similarities and per-dimension contributions for every shoe
-    shoe_vecs     = model["shoe_vecs"]
-    sims          = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
-    contributions = shoe_vecs * q_svd   # (n_shoes, k) — signed contribution per dim
-
-    idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
-
-    def _dim_label(dim, sign_positive):
-        """Return top concept words and the query match percentage for the UI."""
-        row = model["Vt_k"][dim]
-        top_idx = np.argsort(row)[::-1][:3] if sign_positive else np.argsort(row)[:3]
-        words = ", ".join(idx_to_vocab.get(j, "") for j in top_idx)
-        
-        # TA FIX: Calculate percentage match based on query activation
-        activation_pct = min(100, abs(float(q_svd[dim])) * 100)
-        return f"{activation_pct:.0f}% concept match ({words})"
-
-    fl_results = {}
-    for i, name in enumerate(model["shoes"]):
-        c_row = contributions[i]
-
-        pos_dim = int(np.argmax(c_row))
-        pos_label = _dim_label(pos_dim, q_svd[pos_dim] >= 0)
-
-        neg_dim  = int(np.argmin(c_row))
-        neg_contrib = float(c_row[neg_dim])
-
-        # TA FIX: Simplified reason string to remove confusing "Dim X" jargon
-        reason = f"SVD {pos_label}"
-        if neg_contrib < -0.01:
-            neg_label = _dim_label(neg_dim, q_svd[neg_dim] >= 0)
-            reason += f" / counter: {neg_label}"
-
-        fl_results[name] = {
-            "score": float(sims[i]),
-            "reason": reason,
-            "fl_review_count": int(model["fl_review_counts"].get(name, 0)),
-        }
-
-    return fl_results
+    return _svd_similarities(_load_fl_svd(), "fl_review_counts")(query_text)
 
 
 def _load_bball_svd():
@@ -1080,67 +1104,7 @@ def _bball_svd_similarities(query_text):
     Project query_text into the basketball SVD latent space and return
     cosine similarities to each shoe. Mirrors _fl_svd_similarities().
     """
-    model = _load_bball_svd()
-    if model is None:
-        return {}
-
-    vocab_idx = model["vocab_idx"]
-    idf = model["idf"]
-    n_terms = len(vocab_idx)
-
-    counts = Counter(_tokenize(query_text))
-    q = np.zeros(n_terms)
-    for tok, cnt in counts.items():
-        idx = vocab_idx.get(tok)
-        if idx is not None:
-            q[idx] = cnt * idf[idx]
-
-    q_norm = np.linalg.norm(q)
-    if q_norm == 0:
-        return {}
-    q = q / q_norm
-
-    q_svd = (q @ model["Vt_k"].T) / (model["s_k"] + 1e-9)
-    q_svd_norm = np.linalg.norm(q_svd)
-    if q_svd_norm == 0:
-        return {}
-    q_svd = q_svd / q_svd_norm
-
-    shoe_vecs = model["shoe_vecs"]
-    sims = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
-    contributions = shoe_vecs * q_svd
-
-    idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
-
-    def _dim_label(dim, sign_positive):
-        row = model["Vt_k"][dim]
-        top_idx = np.argsort(row)[::-1][:3] if sign_positive else np.argsort(row)[:3]
-        words = ", ".join(idx_to_vocab.get(j, "") for j in top_idx)
-        activation_pct = min(100, abs(float(q_svd[dim])) * 100)
-        return f"{activation_pct:.0f}% concept match ({words})"
-
-    bball_results = {}
-    for i, name in enumerate(model["shoes"]):
-        c_row = contributions[i]
-
-        pos_dim = int(np.argmax(c_row))
-        pos_label = _dim_label(pos_dim, q_svd[pos_dim] >= 0)
-
-        neg_dim = int(np.argmin(c_row))
-        neg_contrib = float(c_row[neg_dim])
-
-        reason = f"SVD {pos_label}"
-        if neg_contrib < -0.01:
-            neg_label = _dim_label(neg_dim, q_svd[neg_dim] >= 0)
-            reason += f" / counter: {neg_label}"
-
-        bball_results[name] = {
-            "score": float(sims[i]),
-            "reason": reason,
-            "bball_review_count": int(model["bball_review_counts"].get(name, 0)),
-        }
-
-    return bball_results
+    return _svd_similarities(_load_bball_svd(), "bball_review_counts")(query_text)
 
 
 def _load_running_svd():
@@ -1223,67 +1187,7 @@ def _load_running_svd():
 
 def _running_svd_similarities(query_text):
     """Project query_text into the running SVD latent space. Mirrors _bball_svd_similarities()."""
-    model = _load_running_svd()
-    if model is None:
-        return {}
-
-    vocab_idx = model["vocab_idx"]
-    idf = model["idf"]
-    n_terms = len(vocab_idx)
-
-    counts = Counter(_tokenize(query_text))
-    q = np.zeros(n_terms)
-    for tok, cnt in counts.items():
-        idx = vocab_idx.get(tok)
-        if idx is not None:
-            q[idx] = cnt * idf[idx]
-
-    q_norm = np.linalg.norm(q)
-    if q_norm == 0:
-        return {}
-    q = q / q_norm
-
-    q_svd = (q @ model["Vt_k"].T) / (model["s_k"] + 1e-9)
-    q_svd_norm = np.linalg.norm(q_svd)
-    if q_svd_norm == 0:
-        return {}
-    q_svd = q_svd / q_svd_norm
-
-    shoe_vecs = model["shoe_vecs"]
-    sims = np.clip(shoe_vecs @ q_svd, 0.0, 1.0)
-    contributions = shoe_vecs * q_svd
-
-    idx_to_vocab = {idx: tok for tok, idx in vocab_idx.items()}
-
-    def _dim_label(dim, sign_positive):
-        row = model["Vt_k"][dim]
-        top_idx = np.argsort(row)[::-1][:3] if sign_positive else np.argsort(row)[:3]
-        words = ", ".join(idx_to_vocab.get(j, "") for j in top_idx)
-        activation_pct = min(100, abs(float(q_svd[dim])) * 100)
-        return f"{activation_pct:.0f}% concept match ({words})"
-
-    running_results = {}
-    for i, name in enumerate(model["shoes"]):
-        c_row = contributions[i]
-
-        pos_dim = int(np.argmax(c_row))
-        pos_label = _dim_label(pos_dim, q_svd[pos_dim] >= 0)
-
-        neg_dim = int(np.argmin(c_row))
-        neg_contrib = float(c_row[neg_dim])
-
-        reason = f"SVD {pos_label}"
-        if neg_contrib < -0.01:
-            neg_label = _dim_label(neg_dim, q_svd[neg_dim] >= 0)
-            reason += f" / counter: {neg_label}"
-
-        running_results[name] = {
-            "score": float(sims[i]),
-            "reason": reason,
-            "running_review_count": int(model["running_review_counts"].get(name, 0)),
-        }
-
-    return running_results
+    return _svd_similarities(_load_running_svd(), "running_review_counts")(query_text)
 
 
 def _parse_query(text):
@@ -1369,16 +1273,20 @@ def search_shoes(query="", category="", use_case="", limit=12):
         bball_data = bball_sims.get(shoe["shoe_name"].lower())
         running_data = running_sims.get(shoe["shoe_name"].lower())
         svd_reason = None
+        svd_profile = []
 
         if fl_data is not None and fl_data["fl_review_count"] >= FL_SVD_MIN_REVIEWS:
             expert_sim = (1 - FL_SVD_WEIGHT) * tfidf_sim + FL_SVD_WEIGHT * fl_data["score"]
             svd_reason = fl_data["reason"]
+            svd_profile = fl_data["svd_profile"]
         elif bball_data is not None and bball_data["bball_review_count"] >= BBALL_SVD_MIN_REVIEWS:
             expert_sim = (1 - BBALL_SVD_WEIGHT) * tfidf_sim + BBALL_SVD_WEIGHT * bball_data["score"]
             svd_reason = bball_data["reason"]
+            svd_profile = bball_data["svd_profile"]
         elif running_data is not None and running_data["running_review_count"] >= RUNNING_SVD_MIN_REVIEWS:
             expert_sim = (1 - RUNNING_SVD_WEIGHT) * tfidf_sim + RUNNING_SVD_WEIGHT * running_data["score"]
             svd_reason = running_data["reason"]
+            svd_profile = running_data["svd_profile"]
         else:
             expert_sim = tfidf_sim
 
@@ -1435,6 +1343,7 @@ def search_shoes(query="", category="", use_case="", limit=12):
                 "review_count": shoe["review_count"],
                 "signature_player": None,
                 "review_signals": {},
+                "svd_profile": svd_profile,
                 "top_terms": _query_tags(query_vector, shoe),
                 "match_reasons": special_badges,
                 "expert_penalty_detail": expert_penalty_detail,
