@@ -123,6 +123,17 @@ const CATEGORY_FALLBACK_AXES: Record<string, string[]> = {
   lifestyle:  ['Style', 'Comfort', 'Fit', 'Materials', 'Versatility', 'Look'],
 }
 
+const primaryConcept = (raw: string): string => {
+  const parts = raw.split(',').map(w => w.trim()).filter(Boolean)
+  const first = parts[0] ?? raw.trim()
+  const label = first.charAt(0).toUpperCase() + first.slice(1)
+  if (label.length <= 3 && parts[1]) {
+    const second = parts[1].charAt(0).toUpperCase() + parts[1].slice(1)
+    return `${label} · ${second}`
+  }
+  return label
+}
+
 const buildLatentAxes = (sneaker: Sneaker): LatentAxis[] => {
   if (sneaker.svd_profile && sneaker.svd_profile.length >= 3) {
     const maxValue = Math.max(
@@ -130,7 +141,7 @@ const buildLatentAxes = (sneaker: Sneaker): LatentAxis[] => {
       0.01
     )
     return sneaker.svd_profile.slice(0, 6).map(axis => ({
-      label: formatAxisLabel(axis.label || `Dimension ${axis.dimension}`),
+      label: primaryConcept(axis.label) || `Dim ${axis.dimension}`,
       dimension: axis.dimension,
       queryValue: clamp(axis.query_value / maxValue, 0.08, 1),
       shoeValue: clamp(axis.shoe_value / maxValue, 0, 1),
