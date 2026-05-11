@@ -1067,26 +1067,30 @@ body::after {
 
 .rag-btn {
   flex-shrink: 0;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--terracotta);
-  background: transparent;
-  color: var(--terracotta);
-  font-size: 0.72rem;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #e8622f, #ff8c45);
+  color: #fff;
+  font-size: 0.8rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  box-shadow: 0 4px 14px rgba(201, 87, 47, 0.3);
+  transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
 }
 
 .rag-btn:hover:not(:disabled) {
-  background: var(--terracotta);
-  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(201, 87, 47, 0.42);
+  filter: brightness(1.08);
+  background: linear-gradient(135deg, #0056b3, #ff8c45);
 }
 
 .rag-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
+  opacity: 0.62;
+  cursor: wait;
 }
 
 .rag-explanation {
@@ -1237,8 +1241,9 @@ body::after {
   display: grid;
   gap: 0.5rem;
   margin: 0;
-  padding: 0.85rem;
+  padding: 0.85rem 1.5rem;
   border: 1px solid rgba(17, 26, 24, 0.1);
+  overflow: visible;
   background:
     radial-gradient(circle at 50% 42%, rgba(201, 87, 47, 0.12), transparent 38%),
     linear-gradient(180deg, rgba(248, 255, 253, 0.97), rgba(255, 244, 236, 0.92));
@@ -1289,10 +1294,10 @@ body::after {
 }
 
 .svd-axis-label {
-  fill: rgba(17, 26, 24, 0.62);
-  font-size: 0.53rem;
+  fill: rgba(17, 26, 24, 0.78);
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .svd-profile-area {
@@ -1330,11 +1335,10 @@ body::after {
 }
 
 .svd-tooltip-label {
-  fill: rgba(255, 248, 239, 0.72);
-  font-size: 0.48rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  fill: rgba(255, 248, 239, 0.9);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .svd-tooltip-value {
@@ -2562,6 +2566,7 @@ body::after {
     opacity: 0.45;
   }
 }
+
 
 @media (max-width: 960px) {
   .hero-shell {

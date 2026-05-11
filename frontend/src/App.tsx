@@ -100,6 +100,15 @@ const getReasonTone = (reason: string): string => {
   return 'default'
 }
 
+const formatSvdBadge = (reason: string): string => {
+  const match = reason.match(/\(([^)]+)\)/)
+  if (match) {
+    const concepts = match[1].split(', ').slice(0, 3).join(' · ')
+    return `✨ ${concepts}`
+  }
+  return '✨ SVD match'
+}
+
 const formatAxisLabel = (value: string): string =>
   value
     .replace(/[_-]+/g, ' ')
@@ -130,7 +139,11 @@ const buildLatentAxes = (sneaker: Sneaker): LatentAxis[] => {
   }
 
   const numericSignals = Object.entries(sneaker.review_signals)
-    .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+    .filter((entry): entry is [string, number] =>
+      typeof entry[1] === 'number' &&
+      Number.isFinite(entry[1]) &&
+      !/^dim_?\d+$/i.test(entry[0])
+    )
     .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
     .slice(0, 6)
 
@@ -213,7 +226,7 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
 
   const center = 108
   const radius = featured ? 62 : 50
-  const labelRadius = featured ? 86 : 70
+  const labelRadius = featured ? 94 : 82
   const levels = [0.2, 0.4, 0.6, 0.8, 1]
   const pointsFor = (scale: number): string =>
     axes
@@ -243,8 +256,8 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
     .join(' ')
   const hasQueryOverlay = axes.some(axis => axis.queryValue !== undefined)
 
-  const TIP_W = hasQueryOverlay ? 88 : 62
-  const TIP_H = 26
+  const TIP_W = hasQueryOverlay ? 92 : 84
+  const TIP_H = 30
   const tipX = clamp(tooltip?.x ?? 0, TIP_W / 2 + 2, 216 - TIP_W / 2 - 2)
   const tipY = (tooltip?.y ?? 0) < 40 ? (tooltip?.y ?? 0) + 14 : (tooltip?.y ?? 0) - TIP_H - 6
 
@@ -273,7 +286,7 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
             <g key={`${axis.label}-${index}`}>
               <line className="svd-axis-line" x1={center} y1={center} x2={x} y2={y} />
               <text className="svd-axis-label" x={labelX} y={labelY} textAnchor={anchor} dominantBaseline="middle">
-                {truncateText(axis.label, featured ? 14 : 11)}
+                {axis.label}
               </text>
             </g>
           )
@@ -318,10 +331,10 @@ function SvdRadarChart({ sneaker, featured }: { sneaker: Sneaker; featured: bool
               rx={3} ry={3}
               className="svd-tooltip-bg"
             />
-            <text x={tipX} y={tipY + 10} textAnchor="middle" className="svd-tooltip-label">
-              {tooltip.dimension ? `Dim ${tooltip.dimension}` : truncateText(tooltip.label, 10)}
+            <text x={tipX} y={tipY + 11} textAnchor="middle" className="svd-tooltip-label">
+              {tooltip.label}
             </text>
-            <text x={tipX} y={tipY + 21} textAnchor="middle" className="svd-tooltip-value">
+            <text x={tipX} y={tipY + 23} textAnchor="middle" className="svd-tooltip-value">
               {tooltip.queryValue !== undefined
                 ? `Q ${Math.round(tooltip.queryValue * 100)} / S ${Math.round((tooltip.shoeValue ?? 0) * 100)}`
                 : `${Math.round(tooltip.value * 100)}%`}
@@ -767,14 +780,14 @@ function App(): JSX.Element {
             <div className="result-grid">
               {sneakers.map((sneaker, index) => {
                 const hasPenalty = sneaker.match_reasons.some(reason => reason.includes("Expert's Note"))
-                const specEntries = buildSpecEntries(sneaker).slice(0, 2)
-                const reasonEntries = sneaker.match_reasons
-                  .filter(r => !r.includes('SVD'))
-                  .slice(0, 2)
-                const evidenceText = truncateText(sneaker.review_evidence, 110)
+                const specEntries = buildSpecEntries(sneaker).slice(0, 3)
+                const svdReasons = sneaker.match_reasons.filter(r => r.includes('SVD')).slice(0, 1)
+                const otherReasons = sneaker.match_reasons.filter(r => !r.includes('SVD')).slice(0, 2)
+                const reasonEntries = [...otherReasons, ...svdReasons]
+                const evidenceText = truncateText(sneaker.review_evidence, 150)
                 const reviewSnippet = truncateText(
                   sneaker.sample_reviews[0] || 'No sample review available.',
-                  110
+                  140
                 )
                 const visualStyle = {
                   '--card-shoe-position': CARD_POSITIONS[index % CARD_POSITIONS.length],
@@ -792,13 +805,13 @@ function App(): JSX.Element {
                           <span className="result-score">
                             {`${sneaker.match_score}% match`}
                           </span>
-                          {useLlm && (
+                          {useLlm && !llmExplanations[sneaker.id] && (
                             <button
                               className="rag-btn"
                               disabled={llmLoading[sneaker.id]}
                               onClick={() => void explainShoe(sneaker)}
                             >
-                              {llmLoading[sneaker.id] ? '...' : 'RAG/LLM'}
+                              {llmLoading[sneaker.id] ? 'Analyzing…' : '✨ AI Overview'}
                             </button>
                           )}
                         </div>
@@ -813,7 +826,7 @@ function App(): JSX.Element {
                       {sneaker.top_terms.length > 0 && (
                         <div className="ir-terms-row">
                           <span className="ir-terms-label">IR matched</span>
-                          {sneaker.top_terms.slice(0, 4).map(term => (
+                          {sneaker.top_terms.slice(0, 5).map(term => (
                             <span key={term} className="ir-term-chip">{term}</span>
                           ))}
                         </div>
@@ -826,7 +839,7 @@ function App(): JSX.Element {
                               key={reasonIndex}
                               className={`reason-chip reason-chip-${getReasonTone(reason)}`}
                             >
-                              {reason}
+                              {reason.includes('SVD') ? formatSvdBadge(reason) : reason}
                             </li>
                           ))}
                         </ul>

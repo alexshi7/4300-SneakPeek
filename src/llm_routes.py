@@ -65,8 +65,15 @@ _SUMMARY_SYSTEM_PROMPT = (
     "Write 3-4 sentences that directly answer the user's original query: "
     "compare the retrieved shoes, explain why the best ones fit using the review evidence "
     "and matched terms provided, and note any trade-offs. "
-    "Be specific and concrete. No markdown, no numbered ranking, plain flowing prose. "
-    "Use only shoe names from the retrieved results."
+    "Be specific and concrete. No markdown bold, plain flowing prose. "
+    "After your prose summary, add exactly one blank line, then write:\n"
+    "Top 4 suggestions:\n"
+    "1. [shoe name] — [one short reason]\n"
+    "2. [shoe name] — [one short reason]\n"
+    "3. [shoe name] — [one short reason]\n"
+    "4. [shoe name] — [one short reason]\n"
+    "Use only shoe names from the retrieved results. "
+    "List the Top 4 suggestions in the exact order they appear above (highest IR match score first). Do not reorder them."
 )
 
 
